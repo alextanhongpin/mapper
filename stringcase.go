@@ -16,6 +16,13 @@ func LowerFirst(s string) string {
 	return strings.ToLower(s[:1]) + s[1:]
 }
 
+func ShortName(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToLower(s[:1])
+}
+
 func UpperCommonInitialism(s string) string {
 	isCommonInitialisms := commonInitialisms[strings.ToUpper(s)]
 	if isCommonInitialisms {

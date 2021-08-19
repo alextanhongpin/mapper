@@ -79,6 +79,7 @@ func NewType(typ types.Type) *Type {
 		fieldType = t.String()
 	}
 
+	isError = fieldType == "error"
 	return &Type{
 		Type:             fieldType,
 		PkgPath:          fieldPkgPath,

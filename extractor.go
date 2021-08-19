@@ -14,6 +14,7 @@ type FuncDto struct {
 	PkgPath string
 	From    *FuncArg
 	To      *FuncArg
+	Error   *Type
 }
 
 func extractNamedMethods(t *types.Named) []FuncDto {
@@ -33,17 +34,39 @@ func extractFunc(fn *types.Func) *FuncDto {
 	var from, to *FuncArg
 	if sig.Params().Len() > 0 {
 		param := sig.Params().At(0)
-		from = &FuncArg{Name: param.Name(), Type: NewType(param.Type())}
+		typ := NewType(param.Type())
+		name := param.Name()
+		if name == "" {
+			name = ShortName(typ.Type)
+		}
+		from = &FuncArg{Name: name, Type: typ}
 	}
-	if sig.Results().Len() > 0 {
+
+	var err *Type
+	if n := sig.Results().Len(); n > 0 {
 		result := sig.Results().At(0)
-		to = &FuncArg{Name: result.Name(), Type: NewType(result.Type())}
+
+		typ := NewType(result.Type())
+		name := result.Name()
+		if name == "" {
+			name = ShortName(typ.Type)
+		}
+		to = &FuncArg{Name: name, Type: typ}
+
+		// Allow errors as second return value.
+		if n > 1 {
+			if errType := NewType(sig.Results().At(1).Type()); errType.IsError {
+				err = errType
+			}
+		}
 	}
 	return &FuncDto{
 		Name:    fn.Name(),
 		PkgPath: fn.Pkg().Path(),
 		From:    from,
 		To:      to,
+		Error:   err,
+		//Ctx:
 	}
 }
 

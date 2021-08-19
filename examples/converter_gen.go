@@ -12,25 +12,54 @@ func NewConverter() *Converter {
 	return &Converter{}
 }
 
-func (c *Converter) Convert(a Foo) Bar {
+func (c *Converter) Convert(a Foo) (Bar, error) {
+	aID, err := a.ID()
+	if err != nil {
+		return Bar{}, err
+	}
+
 	return Bar{
 		Age:  a.Age,
-		ID:   a.ID,
+		ID:   aID,
 		Name: a.Name(),
 		Task: a.Task,
-	}
+	}, nil
 }
 
-func (c *Converter) ConvertImport(f foo.Foo) bar.Bar {
+func (c *Converter) ConvertImport(f foo.Foo) (bar.Bar, error) {
+	fID, err := f.ID()
+	if err != nil {
+		return bar.Bar{}, err
+	}
+
 	return bar.Bar{
-		ID:   f.ID,
+		ID:   fID,
 		Name: f.Name,
-	}
+	}, nil
 }
 
-func (c *Converter) ConvertImportPointer(f *foo.Foo) *bar.Bar {
-	return &bar.Bar{
-		ID:   f.ID,
-		Name: f.Name,
+func (c *Converter) ConvertImportPointer(f *foo.Foo) (*bar.Bar, error) {
+	fID, err := f.ID()
+	if err != nil {
+		return &bar.Bar{}, err
 	}
+
+	return &bar.Bar{
+		ID:   fID,
+		Name: f.Name,
+	}, nil
+}
+
+func (c *Converter) ConvertNameless(f Foo) (Bar, error) {
+	fID, err := f.ID()
+	if err != nil {
+		return Bar{}, err
+	}
+
+	return Bar{
+		Age:  f.Age,
+		ID:   fID,
+		Name: f.Name(),
+		Task: f.Task,
+	}, nil
 }

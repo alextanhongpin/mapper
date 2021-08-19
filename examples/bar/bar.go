@@ -1,6 +1,8 @@
 package bar
 
+import "github.com/google/uuid"
+
 type Bar struct {
-	ID   string
+	ID   uuid.UUID
 	Name string
 }
