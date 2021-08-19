@@ -16,7 +16,7 @@ func (c *Converter) Convert(a Foo) Bar {
 	return Bar{
 		Age:  a.Age,
 		ID:   a.ID,
-		Name: a.Name,
+		Name: a.Name(),
 		Task: a.Task,
 	}
 }

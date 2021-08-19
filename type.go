@@ -4,31 +4,109 @@ import (
 	"go/types"
 )
 
-func extractStructFields(structType *types.Struct) map[string]StructField {
-	fields := make(map[string]StructField)
-	for i := 0; i < structType.NumFields(); i++ {
-		field := structType.Field(i)
-		tag := structType.Tag(i)
-
-		fields[field.Name()] = StructField{
-			Name:     field.Name(),
-			PkgPath:  field.Pkg().Path(),
-			Exported: field.Exported(),
-			Field:    NewField(field.Type()),
-			Tag:      tag,
-		}
-	}
-	return fields
+type Type struct {
+	Type             string `example:"NullString"`
+	PkgPath          string `example:"database/sql"`
+	IsStruct         bool
+	IsPointer        bool
+	IsArray          bool // Whether it's an array or slice.
+	IsInterface      bool
+	IsSlice          bool
+	IsError          bool // NOT IMPLEMENTED
+	IsMap            bool
+	MapKey           *Type
+	MapValue         *Type
+	StructFields     map[string]StructField
+	StructMethods    []FuncDto
+	InterfaceMethods []FuncDto
 }
 
-func compareStructFields(src map[string]StructField, tgt map[string]StructField) bool {
-	if len(src) != len(tgt) {
-		return false
+// NewType recursively checks for the field type.
+func NewType(typ types.Type) *Type {
+	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool
+	var fieldPkgPath, fieldType string
+	var mapKey, mapValue *Type
+	var structFields map[string]StructField
+	var structMethods, interfaceMethods []FuncDto
+
+	switch t := typ.(type) {
+	case *types.Interface:
+		isInterface = true
+		interfaceMethods = extractInterfaceMethods(t)
+	case *types.Pointer:
+		isPointer = true
+		typ = t.Elem()
 	}
-	for key := range src {
-		if _, exist := tgt[key]; !exist {
-			return false
+
+	switch t := typ.(type) {
+	case *types.Slice:
+		isSlice = true
+		typ = t.Elem()
+	case *types.Array:
+		isArray = true
+		typ = t.Elem()
+	case *types.Map:
+		isMap = true
+		mapKey = NewType(t.Key())
+		mapValue = NewType(t.Elem())
+	}
+
+	// In case the slice or array is pointer, we take the elem again.
+	switch t := typ.(type) {
+	case *types.Pointer:
+		isPointer = true
+		typ = t.Elem()
+	}
+
+	switch t := typ.(type) {
+	case *types.Named:
+		obj := t.Obj()
+		if pkg := obj.Pkg(); pkg != nil {
+			fieldPkgPath = pkg.Path()
 		}
+		fieldType = obj.Name()
+		structMethods = extractNamedMethods(t)
+
+		// The underlying type could be a struct.
+		if structType, isStruct := t.Underlying().(*types.Struct); isStruct {
+			isStruct = true
+			structFields = extractStructFields(structType)
+		}
+	case *types.Struct:
+		isStruct = true
+		structFields = extractStructFields(t)
+	default:
+		fieldType = t.String()
 	}
-	return true
+
+	return &Type{
+		Type:             fieldType,
+		PkgPath:          fieldPkgPath,
+		IsStruct:         isStruct,
+		IsSlice:          isSlice,
+		IsArray:          isArray,
+		IsPointer:        isPointer,
+		IsMap:            isMap,
+		IsInterface:      isInterface,
+		IsError:          isError,
+		MapKey:           mapKey,
+		MapValue:         mapValue,
+		StructFields:     structFields,
+		StructMethods:    structMethods,
+		InterfaceMethods: interfaceMethods,
+	}
+}
+
+// StructField for the example below.
+//type Foo struct {
+//  Name sql.NullString `json:"name"
+//}
+type StructField struct {
+	Name string `example:"Name"`
+	// Useful when the output directory doesn't match the existing ones.
+	PkgPath  string `example:"github.com/alextanhongpin/go-codegen/test"`
+	PkgName  string `example:"test"`
+	Exported bool   `example:"true"`
+	Tag      string `example:"build:'-'"` // To ignore builder.
+	*Type
 }
