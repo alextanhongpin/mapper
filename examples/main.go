@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go/types"
 	"log"
 	"strconv"
 
@@ -20,11 +21,16 @@ type Task struct {
 	Name string
 }
 
+func ParseUUID(id string) (uuid.UUID, error) {
+	return uuid.Parse(id)
+}
+
 type Foo struct {
-	Age  int
-	name string
-	Task Task
-	id   string
+	CustomID string `map:"ExternalID,ParseUUID"`
+	FakeAge  int    `map:"Age"`
+	name     string
+	Task     Task
+	id       string
 	//Remarks string // Fail with extra fields now.
 	// CustomName `mapper:"YourName"`
 	// CustomMapper `mapper:"github.com/yourorganization/yourpackage/struct.Method"`
@@ -56,10 +62,11 @@ type Converter interface {
 }
 
 type Bar struct {
-	Name string
-	Age  int
-	Task Task
-	ID   uuid.UUID
+	ID         uuid.UUID
+	Name       string
+	RealAge    int `json:"age" map:"Age"`
+	Task       Task
+	ExternalID uuid.UUID
 }
 
 func main() {
@@ -112,10 +119,11 @@ func generateConverterConstructor(f *jen.File, typeName string) {
 	).Line()
 }
 
-func generateConvertMethod(f *jen.File, pkgPath, typeName string, fn mapper.FuncDto) {
+func generateConvertMethod(f *jen.File, pkgPath, typeName string, fn mapper.Func) {
 	// Output:
 	// func (c *Converter) Convert(a A) (B, error) {
 	//   return B{
+	//     ID: a.ID,
 	//     Name: a.Name,
 	//   }, nil
 	// }
@@ -123,16 +131,67 @@ func generateConvertMethod(f *jen.File, pkgPath, typeName string, fn mapper.Func
 	from, to := fn.From, fn.To
 
 	dict := Dict{}
-	var methodsWithErrors []mapper.FuncDto
+
+	type mapperFunc struct {
+		Fn *mapper.Func
+		In mapper.StructField
+	}
+	var funcWithErrors []mapperFunc
+	var methodsWithErrors []mapper.Func
 	for key, t := range to.Type.StructFields {
+
+		// Check if there is a field mapping.
 		f, ok := from.Type.StructFields[key]
 		if ok {
+			// `map:"CustomField,CustomFunc"`
+			if tag, exists := mapper.NewTag(f.Tag); exists && tag.HasFunc() {
+				// Load the function.
+				pkg := mapper.LoadPackage(pkgPath)
+				obj := mapper.LookupType(pkg, tag.Func)
+				if obj == nil {
+					panic(fmt.Sprintf("mapper: func not found: %s", tag.Func))
+				}
+
+				fnType, ok := obj.(*types.Func)
+				if !ok {
+					panic(fmt.Sprintf("mapper: not a func: %s", tag.Func))
+				}
+
+				fn := mapper.ExtractFunc(fnType)
+
+				if fn.From.Type.Type != f.Type.Type {
+					panic(fmt.Sprintf("mapper: input signature does not match: %v != %v", fn.From.Type.Type, f.Type.Type))
+				}
+
+				if fn.To.Type.Type != t.Type.Type {
+					panic(fmt.Sprintf("mapper: output signature does not match: %v != %v", fn.To.Type.Type, t.Type.Type))
+				}
+
+				if fn.Error != nil {
+					funcWithErrors = append(funcWithErrors, mapperFunc{
+						Fn: fn,
+						In: f,
+					})
+					// Name: aName,
+					dict[Id(t.Name)] = Id(from.Name + f.Name)
+					continue
+				}
+
+				// Name: ParseUUID(a.Name)
+				dict[Id(t.Name)] = Id(fn.Name).Call(Id(from.Name).Dot(f.Name))
+
+				continue
+			}
+
 			// Name: a.Name
 			dict[Id(t.Name)] = Id(from.Name).Dot(f.Name)
 			continue
 		}
+
+		// Check if there is a method with the name that returns the same signature.
 		var found bool
 		for _, m := range from.Type.StructMethods {
+			// The name of the method matches the name of field, e.g. to.Age: from.Age()
 			if m.Name == key {
 				if m.To.Type.Type != t.Type.Type {
 					panic("method signature found, but types are different")
@@ -185,8 +244,14 @@ func generateConvertMethod(f *jen.File, pkgPath, typeName string, fn mapper.Func
 		returnVar = Op(toPtr).Qual(skipImportIfBelongToSamePackage(pkgPath, to.Type.PkgPath), to.Type.Type).Values(dict)
 	}
 
+	// For each methods that has error as the second return value,
+	// initialize them and return it.
 	var checkErrors []Code
 	for _, fn := range methodsWithErrors {
+		// aName, err := a.Name()
+		// if err != nil {
+		//	return &Bar{}, err
+		// }
 		checkErrors = append(checkErrors, List(Id(from.Name+fn.Name), Id("err")).Op(":=").Id(from.Name).Dot(fn.Name).Call())
 		checkErrors = append(checkErrors,
 			If(Id("err").Op("!=").Id("nil").Block(
@@ -196,11 +261,22 @@ func generateConvertMethod(f *jen.File, pkgPath, typeName string, fn mapper.Func
 						Id("err"),
 					),
 				))).Line())
+	}
 
-		// aName, err := a.Name()
+	for _, fn := range funcWithErrors {
+		// aName, err := CustomFunc(a.Name)
 		// if err != nil {
 		//	return &Bar{}, err
 		// }
+		checkErrors = append(checkErrors, List(Id(from.Name+fn.In.Name), Id("err")).Op(":=").Id(fn.Fn.Name).Call(Id(from.Name).Dot(fn.In.Name)))
+		checkErrors = append(checkErrors,
+			If(Id("err").Op("!=").Id("nil").Block(
+				Return(
+					List(
+						Op(toPtr).Qual(skipImportIfBelongToSamePackage(pkgPath, to.Type.PkgPath), to.Type.Type).Values(Dict{}),
+						Id("err"),
+					),
+				))).Line())
 	}
 
 	f.Func().Params(Id("c").Op("*").Id(typeName)). // (c *Converter)

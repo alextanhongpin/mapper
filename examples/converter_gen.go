@@ -18,11 +18,37 @@ func (c *Converter) Convert(a Foo) (Bar, error) {
 		return Bar{}, err
 	}
 
+	aCustomID, err := ParseUUID(a.CustomID)
+	if err != nil {
+		return Bar{}, err
+	}
+
 	return Bar{
-		Age:  a.Age,
-		ID:   aID,
-		Name: a.Name(),
-		Task: a.Task,
+		ExternalID: aCustomID,
+		ID:         aID,
+		Name:       a.Name(),
+		RealAge:    a.FakeAge,
+		Task:       a.Task,
+	}, nil
+}
+
+func (c *Converter) ConvertFoo(a Foo) (Bar, error) {
+	aID, err := a.ID()
+	if err != nil {
+		return Bar{}, err
+	}
+
+	aCustomID, err := ParseUUID(a.CustomID)
+	if err != nil {
+		return Bar{}, err
+	}
+
+	return Bar{
+		ExternalID: aCustomID,
+		ID:         aID,
+		Name:       a.Name(),
+		RealAge:    a.FakeAge,
+		Task:       a.Task,
 	}, nil
 }
 
@@ -56,10 +82,16 @@ func (c *Converter) ConvertNameless(f Foo) (Bar, error) {
 		return Bar{}, err
 	}
 
+	fCustomID, err := ParseUUID(f.CustomID)
+	if err != nil {
+		return Bar{}, err
+	}
+
 	return Bar{
-		Age:  f.Age,
-		ID:   fID,
-		Name: f.Name(),
-		Task: f.Task,
+		ExternalID: fCustomID,
+		ID:         fID,
+		Name:       f.Name(),
+		RealAge:    f.FakeAge,
+		Task:       f.Task,
 	}, nil
 }

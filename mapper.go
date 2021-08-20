@@ -45,7 +45,17 @@ func New(fn Generator) error {
 			out = fullPath(o)
 		}
 
-		pkg, inType := loadInterface(rootPkgPath, typeName) // github.com/your-github-username/your-pkg.
+		pkg := LoadPackage(rootPkgPath)
+		obj := LookupType(pkg, typeName)
+		if obj == nil {
+			panic(fmt.Sprintf("gen: interface %s not found", typeName))
+		}
+
+		inType, ok := obj.Type().Underlying().(*types.Interface)
+		if !ok {
+			panic(fmt.Sprintf("gen: %v is not an interface", obj))
+		}
+
 		log.Printf("inPkg: %v\n", pkg)
 		log.Printf("inType: %v\n", NewType(inType))
 

@@ -1,7 +1,6 @@
 package mapper
 
 import (
-	"fmt"
 	"go/types"
 	"log"
 	"os"
@@ -47,7 +46,7 @@ func packageName(pkgPath string) string {
 	return filepath.Base(packagePath(pkgPath))
 }
 
-func loadPackage(pkgPath string) *packages.Package {
+func LoadPackage(pkgPath string) *packages.Package {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports,
 	}
@@ -61,36 +60,6 @@ func loadPackage(pkgPath string) *packages.Package {
 	return pkgs[0]
 }
 
-func loadFunction(pkgPath, fnName string) (*packages.Package, *types.Func) {
-	pkg := loadPackage(pkgPath) // github.com/your-github-username/your-pkg.
-	obj := pkg.Types.Scope().Lookup(fnName)
-	if obj == nil {
-		panic(fmt.Sprintf("gen: func %s not found", fnName))
-	}
-	// Check if the type is a struct.
-	funcType, ok := obj.(*types.Func)
-	if !ok {
-		panic(fmt.Sprintf("gen: %v is not a func", obj))
-	}
-	return pkg, funcType
-}
-
-func loadInterface(pkgPath, inName string) (*packages.Package, *types.Interface) {
-	pkg := loadPackage(pkgPath) // github.com/your-github-username/your-pkg.
-	obj := pkg.Types.Scope().Lookup(inName)
-	if obj == nil {
-		panic(fmt.Sprintf("gen: interface %s not found", inName))
-	}
-
-	// Check if it is a declared typed.
-	if _, ok := obj.(*types.TypeName); !ok {
-		log.Fatalf("gen: %v is not a named type", obj)
-	}
-
-	// Check if the type is an interface.
-	inType, ok := obj.Type().Underlying().(*types.Interface)
-	if !ok {
-		panic(fmt.Sprintf("gen: %v is not an interface", obj))
-	}
-	return pkg, inType
+func LookupType(pkg *packages.Package, typeName string) types.Object {
+	return pkg.Types.Scope().Lookup(typeName)
 }

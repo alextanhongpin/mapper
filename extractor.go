@@ -9,7 +9,8 @@ type FuncArg struct {
 	Name string
 	Type *Type
 }
-type FuncDto struct {
+
+type Func struct {
 	Name    string
 	PkgPath string
 	From    *FuncArg
@@ -17,15 +18,15 @@ type FuncDto struct {
 	Error   *Type
 }
 
-func extractNamedMethods(t *types.Named) []FuncDto {
-	result := make([]FuncDto, t.NumMethods())
+func extractNamedMethods(t *types.Named) []Func {
+	result := make([]Func, t.NumMethods())
 	for i := 0; i < t.NumMethods(); i++ {
-		result[i] = *extractFunc(t.Method(i))
+		result[i] = *ExtractFunc(t.Method(i))
 	}
 	return result
 }
 
-func extractFunc(fn *types.Func) *FuncDto {
+func ExtractFunc(fn *types.Func) *Func {
 	sig, ok := fn.Type().(*types.Signature)
 	if !ok {
 		panic(fmt.Sprintf("mapper: type is not func: %v", fn))
@@ -60,7 +61,7 @@ func extractFunc(fn *types.Func) *FuncDto {
 			}
 		}
 	}
-	return &FuncDto{
+	return &Func{
 		Name:    fn.Name(),
 		PkgPath: fn.Pkg().Path(),
 		From:    from,
@@ -70,10 +71,10 @@ func extractFunc(fn *types.Func) *FuncDto {
 	}
 }
 
-func extractInterfaceMethods(in *types.Interface) []FuncDto {
-	result := make([]FuncDto, in.NumExplicitMethods())
+func extractInterfaceMethods(in *types.Interface) []Func {
+	result := make([]Func, in.NumExplicitMethods())
 	for i := 0; i < in.NumExplicitMethods(); i++ {
-		result[i] = *extractFunc(in.ExplicitMethod(i))
+		result[i] = *ExtractFunc(in.ExplicitMethod(i))
 	}
 	return result
 }
@@ -83,8 +84,13 @@ func extractStructFields(structType *types.Struct) map[string]StructField {
 	for i := 0; i < structType.NumFields(); i++ {
 		field := structType.Field(i)
 		tag := structType.Tag(i)
+		key := field.Name()
 
-		fields[field.Name()] = StructField{
+		if mapTag, ok := NewTag(tag); ok && mapTag.IsAlias() {
+			key = mapTag.Name
+		}
+
+		fields[key] = StructField{
 			Name:     field.Name(),
 			PkgPath:  field.Pkg().Path(),
 			Exported: field.Exported(),
