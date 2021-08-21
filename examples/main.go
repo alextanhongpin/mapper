@@ -11,7 +11,6 @@ import (
 	"github.com/alextanhongpin/mapper/examples/foo"
 	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 )
 
@@ -32,11 +31,21 @@ type Foo struct {
 	name     string
 	Task     Task
 	id       string
+	SomeID   string `map:"ImportedID,github.com/alextanhongpin/mapper/examples/foo/Fooer.ConvertID"`
 	//Remarks string // Fail with extra fields now.
 	// CustomName `mapper:"YourName"`
 	// CustomMapper `mapper:"github.com/yourorganization/yourpackage/struct.Method"`
 	// CustomInterface `mapper:"github.com/yourorganization/yourpackage/interface.Method"`
 	// CustomFunction`mapper:"github.com/yourorganization/yourpackage.funcName"`
+}
+
+type Bar struct {
+	ID         uuid.UUID
+	Name       string
+	RealAge    int `json:"age" map:"Age"`
+	Task       Task
+	ExternalID uuid.UUID
+	ImportedID uuid.UUID
 }
 
 func (f Foo) ID() (uuid.UUID, error) {
@@ -100,14 +109,6 @@ func (c *CustomStructConverter) ConvertToInt(s string) (int, error) {
 type CustomInterfaceConverter interface {
 	ConvertToString(a int) string
 	ConvertToInt(a string) (int, error)
-}
-
-type Bar struct {
-	ID         uuid.UUID
-	Name       string
-	RealAge    int `json:"age" map:"Age"`
-	Task       Task
-	ExternalID uuid.UUID
 }
 
 func convert(c Converter) {
@@ -337,8 +338,6 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 					}
 
 					typ := mapper.NewType(obj.Type())
-
-					//typ := mapper.NewType(obj.Type())
 					switch {
 					case typ.IsInterface:
 						method := typ.InterfaceMethods[tag.Func]
@@ -348,6 +347,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 						if method.To.Type.Type != t.Type.Type {
 							panic("mapper: method return type does not match")
 						}
+						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
 						if method.Error != nil {
 							embeddedStructMethodsWithError = append(embeddedStructMethodsWithError, mapperFunc{
 								Fn:         &method,
@@ -358,11 +358,9 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 							dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + f.Name)
 							continue
 						}
-						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
 
 						// Name: c.interface.CustomMethod(a.Name)
 						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.TypeName)).Dot(method.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
-
 					case typ.IsStruct:
 						method := typ.StructMethods[tag.Func]
 						if method.From.Type.Type != f.Type.Type {
@@ -371,6 +369,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 						if method.To.Type.Type != t.Type.Type {
 							panic("mapper: method return type does not match")
 						}
+						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
 						if method.Error != nil {
 							embeddedStructMethodsWithError = append(embeddedStructMethodsWithError, mapperFunc{
 								Fn:         &method,
@@ -381,12 +380,10 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 							dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + f.Name)
 							continue
 						}
-						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
 
 						// Name: c.struct.CustomMethod(a.Name)
 						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.TypeName)).Dot(method.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
 					default:
-						spew.Dump(typ)
 						panic("mapper: not implemented" + f.Name)
 					}
 				}
