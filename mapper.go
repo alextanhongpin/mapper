@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"go/types"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,8 +55,8 @@ func New(fn Generator) error {
 			panic(fmt.Sprintf("gen: %v is not an interface", obj))
 		}
 
-		log.Printf("inPkg: %v\n", pkg)
-		log.Printf("inType: %v\n", NewType(inType))
+		//log.Printf("inPkg: %v\n", pkg)
+		//log.Printf("inType: %v\n", NewType(inType))
 
 		//fnPkg, fnType := loadFunction(rootPkgPath, "CustomConverter")
 		//log.Printf("fnPkg: %v\n", fnPkg)

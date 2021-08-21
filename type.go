@@ -110,6 +110,7 @@ type StructField struct {
 	PkgPath  string `example:"github.com/alextanhongpin/go-codegen/test"`
 	PkgName  string `example:"test"`
 	Exported bool   `example:"true"`
-	Tag      string `example:"build:'-'"` // To ignore builder.
+	Tag      *Tag   `example:"'map:",yourpkg.YourFunc"'"`
 	*Type
+	*types.Var
 }

@@ -3,6 +3,8 @@ package mapper
 import (
 	"fmt"
 	"go/types"
+	"path"
+	"strings"
 )
 
 type FuncArg struct {
@@ -16,6 +18,40 @@ type Func struct {
 	From    *FuncArg
 	To      *FuncArg
 	Error   *Type
+	Fn      *types.Func // Store the original
+}
+
+func (f *Func) normalizedArg(arg *FuncArg) string {
+	_, s := path.Split(fullName(arg.Type.PkgPath, arg.Type.Type))
+	s = strings.ReplaceAll(s, ".", "")
+	s = UpperCommonInitialism(s)
+	return s
+}
+
+func (f *Func) NormalizedName() string {
+	in := f.normalizedArg(f.From)
+	out := f.normalizedArg(f.To)
+	return fmt.Sprintf("map%sTo%s", in, out)
+}
+
+func (f *Func) NormalizedSignature() string {
+	returnTuple := fullName(f.To.Type.PkgPath, f.To.Type.Type)
+	if f.Error != nil {
+		returnTuple = fmt.Sprintf("(%s, error)", returnTuple)
+	}
+
+	return fmt.Sprintf("func %s(%s) %s",
+		f.NormalizedName(),
+		fullName(f.From.Type.PkgPath, f.From.Type.Type),
+		returnTuple,
+	)
+}
+
+func fullName(pkgPath, name string) string {
+	if pkgPath == "" {
+		return name
+	}
+	return fmt.Sprintf("%s.%s", pkgPath, name)
 }
 
 func extractNamedMethods(t *types.Named) []Func {
@@ -67,7 +103,7 @@ func ExtractFunc(fn *types.Func) *Func {
 		From:    from,
 		To:      to,
 		Error:   err,
-		//Ctx:
+		Fn:      fn,
 	}
 }
 
@@ -83,11 +119,11 @@ func extractStructFields(structType *types.Struct) map[string]StructField {
 	fields := make(map[string]StructField)
 	for i := 0; i < structType.NumFields(); i++ {
 		field := structType.Field(i)
-		tag := structType.Tag(i)
 		key := field.Name()
 
-		if mapTag, ok := NewTag(tag); ok && mapTag.IsAlias() {
-			key = mapTag.Name
+		tag, ok := NewTag(structType.Tag(i))
+		if ok && tag.IsAlias() {
+			key = tag.Name
 		}
 
 		fields[key] = StructField{
@@ -96,6 +132,7 @@ func extractStructFields(structType *types.Struct) map[string]StructField {
 			Exported: field.Exported(),
 			Tag:      tag,
 			Type:     NewType(field.Type()),
+			Var:      field,
 		}
 	}
 	return fields
