@@ -11,7 +11,7 @@ import (
 
 type Option struct {
 	In       string // The input path, with the file name, e.g. yourpath/yourfile.go
-	Out      string // The output path, with the gen name, e.g. yourpath/yourfile_gen.go
+	Out      string // The output path, with the mapper name, e.g. yourpath/yourfile_gen.go
 	PkgName  string // The pkgName
 	PkgPath  string // The pkgPath
 	TypeName string // The typeName
@@ -50,12 +50,12 @@ func New(fn Generator) error {
 		pkg := LoadPackage(rootPkgPath)
 		obj := LookupType(pkg, typeName)
 		if obj == nil {
-			panic(fmt.Sprintf("gen: interface %s not found", typeName))
+			panic(fmt.Sprintf("mapper: interface %s not found", typeName))
 		}
 
 		inType, ok := obj.Type().Underlying().(*types.Interface)
 		if !ok {
-			panic(fmt.Sprintf("gen: %v is not an interface", obj))
+			panic(fmt.Sprintf("mapper: %v is not an interface", obj))
 		}
 
 		if err := fn(Option{

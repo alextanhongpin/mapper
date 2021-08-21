@@ -36,3 +36,21 @@ type B struct {
 	Slice []string
 	Map   map[string]int
 }
+
+type User struct {
+	ID    int
+	Name  string
+	Books []Book
+}
+
+type Book struct {
+	ID     int
+	UserID int
+	Title  string
+	Price  Price
+}
+
+type Price struct {
+	Currency string
+	Amount   float64
+}

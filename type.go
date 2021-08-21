@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"go/types"
+	"strings"
 )
 
 type Type struct {
@@ -13,7 +14,7 @@ type Type struct {
 	IsArray          bool // Whether it's an array or slice.
 	IsInterface      bool
 	IsSlice          bool
-	IsError          bool // NOT IMPLEMENTED
+	IsError          bool
 	IsMap            bool
 	MapKey           *Type
 	MapValue         *Type
@@ -21,6 +22,27 @@ type Type struct {
 	StructMethods    map[string]Func
 	InterfaceMethods map[string]Func
 	T                types.Type
+}
+
+// Signature is used to compare if two types are equal.
+func (t Type) Signature() string {
+	// *github.com/alextanhongpin/yourpkg/Bar
+	var parts []string
+	if t.IsPointer {
+		parts = append(parts, "*")
+	}
+	if t.IsSlice {
+		parts = append(parts, "[]")
+	}
+	if t.PkgPath != "" {
+		parts = append(parts, t.PkgPath)
+	}
+	parts = append(parts, t.Type)
+	return strings.Join(parts, "")
+}
+
+func (t Type) Equal(other *Type) bool {
+	return t.Signature() == other.Signature()
 }
 
 // NewType recursively checks for the field type.
@@ -123,10 +145,10 @@ func NewType(typ types.Type) *Type {
 type StructField struct {
 	Name string `example:"Name"`
 	// Useful when the output directory doesn't match the existing ones.
-	PkgPath  string `example:"github.com/alextanhongpin/go-codegen/test"`
-	PkgName  string `example:"test"`
-	Exported bool   `example:"true"`
-	Tag      *Tag   `example:"'map:",yourpkg.YourFunc"'"`
+	PkgPath  string // e.g. github.com/your-org/yourpkg
+	PkgName  string // e.g. yourpkg
+	Exported bool   // e.g. true
+	Tag      *Tag   // e.g. `map:"RenameField,CustomFunction"`
 	*Type
 	*types.Var
 }

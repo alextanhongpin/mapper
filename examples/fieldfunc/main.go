@@ -26,8 +26,8 @@ type A struct {
 
 type B struct {
 	ID         string
-	UUID       uuid.UUID
 	ExternalID string
+	UUID       uuid.UUID
 }
 
 // IntToString that resides locally.

@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// TODO: Add ignore tags.
 var tagRe *regexp.Regexp
 
 func init() {

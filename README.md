@@ -33,3 +33,8 @@ func (m MapperImpl) AtoB(a A) B {
 	}
 }
 ```
+
+## TODO
+
+- [ ] Add ignore tags
+- [ ] Name resolution when not unique

@@ -3,59 +3,7 @@ package mapper
 import (
 	"fmt"
 	"go/types"
-	"path"
-	"strings"
 )
-
-type FuncArg struct {
-	Name string
-	Type *Type
-}
-
-type Func struct {
-	Name string
-	// pkg name can be different from package path, e.g. github.com/alextanhongpin/mapper/examples
-	// can have package `main` instead of `examples`.
-	Pkg     string
-	PkgPath string
-	From    *FuncArg
-	To      *FuncArg
-	Error   *Type
-	Fn      *types.Func // Store the original
-}
-
-func (f *Func) normalizedArg(arg *FuncArg) string {
-	_, s := path.Split(fullName(arg.Type.Pkg, arg.Type.Type))
-	s = strings.ReplaceAll(s, ".", "")
-	s = UpperCommonInitialism(s)
-	return s
-}
-
-func (f *Func) NormalizedName() string {
-	in := f.normalizedArg(f.From)
-	out := f.normalizedArg(f.To)
-	return fmt.Sprintf("map%sTo%s", in, out)
-}
-
-func (f *Func) NormalizedSignature() string {
-	returnTuple := fullName(f.To.Type.PkgPath, f.To.Type.Type)
-	if f.Error != nil {
-		returnTuple = fmt.Sprintf("(%s, error)", returnTuple)
-	}
-
-	return fmt.Sprintf("func %s(%s) %s",
-		f.NormalizedName(),
-		fullName(f.From.Type.PkgPath, f.From.Type.Type),
-		returnTuple,
-	)
-}
-
-func fullName(pkgPath, name string) string {
-	if pkgPath == "" {
-		return name
-	}
-	return fmt.Sprintf("%s.%s", pkgPath, name)
-}
 
 func extractNamedMethods(t *types.Named) map[string]Func {
 	result := make(map[string]Func)
