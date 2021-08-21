@@ -16,14 +16,17 @@ type Option struct {
 	PkgPath  string // The pkgPath
 	TypeName string // The typeName
 	Type     *Type
+	DryRun   bool
 }
 
 type Generator func(opt Option) error
 
 func New(fn Generator) error {
 	typePtr := flag.String("type", "", "the target type name")
+	suffixPtr := flag.String("suffix", "Impl", "the suffix to add to the type")
 	inPtr := flag.String("in", os.Getenv("GOFILE"), "the input file, defaults to the file with the go:generate comment")
 	outPtr := flag.String("out", "", "the output directory")
+	dryRunPtr := flag.Bool("dry-run", false, "whether to print to stdout or write to file")
 	flag.Parse()
 
 	in := fullPath(*inPtr)
@@ -67,11 +70,13 @@ func New(fn Generator) error {
 			PkgPath:  pkg.PkgPath,
 			Out:      out,
 			In:       in,
-			TypeName: typeName,
+			TypeName: typeName + *suffixPtr,
 			Type:     NewType(inType),
+			DryRun:   *dryRunPtr,
 		}); err != nil {
 			return err
 		}
+		fmt.Println("generated " + out)
 	}
 	return nil
 }

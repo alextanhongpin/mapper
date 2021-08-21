@@ -4,101 +4,102 @@ package main
 import (
 	bar "github.com/alextanhongpin/mapper/examples/bar"
 	foo "github.com/alextanhongpin/mapper/examples/foo"
+	uuid "github.com/google/uuid"
 )
 
-type Converter struct {
+type ConverterImpl struct {
 	customStructConverter *CustomStructConverter
 }
 
-func NewConverter(customStructConverter *CustomStructConverter) *Converter {
-	return &Converter{customStructConverter: customStructConverter}
+func NewConverterImpl(customStructConverter *CustomStructConverter) *ConverterImpl {
+	return &ConverterImpl{customStructConverter: customStructConverter}
 }
 
-func (c *Converter) mapMainDToMainC(d D) (C, error) {
-	dID, err := c.customStructConverter.ConvertToInt(d.ID)
-	if err != nil {
-		return C{}, err
-	}
-
-	return C{ID: dID}, nil
-}
-
-func (c *Converter) mapMainFooToMainBar(f Foo) (Bar, error) {
-	fID, err := f.ID()
+func (c *ConverterImpl) mapMainFooToMainBar(a0 Foo) (Bar, error) {
+	a0ID, err := a0.ID()
 	if err != nil {
 		return Bar{}, err
 	}
 
-	fCustomID, err := ParseUUID(f.CustomID)
+	a0CustomID, err := uuid.Parse(a0.CustomID)
 	if err != nil {
 		return Bar{}, err
 	}
 
 	return Bar{
-		ExternalID: fCustomID,
-		ID:         fID,
-		Name:       f.Name(),
-		RealAge:    f.FakeAge,
-		Task:       f.Task,
+		ExternalID: a0CustomID,
+		ID:         a0ID,
+		Name:       a0.Name(),
+		RealAge:    a0.FakeAge,
+		Task:       a0.Task,
 	}, nil
 }
 
-func (c *Converter) mapMainAToMainB(a A) B {
-	return B{Name: a.Name}
-}
-
-func (c *Converter) mapFooFooToBarBar(f foo.Foo) (bar.Bar, error) {
-	fID, err := f.ID()
+func (c *ConverterImpl) mapFooFooToBarBar(f0 foo.Foo) (bar.Bar, error) {
+	f0ID, err := f0.ID()
 	if err != nil {
 		return bar.Bar{}, err
 	}
 
 	return bar.Bar{
-		ID:   fID,
-		Name: f.Name,
+		ID:   f0ID,
+		Name: f0.Name,
 	}, nil
 }
 
-func (c *Converter) mapMainCToMainD(c C) D {
-	return D{ID: c.customStructConverter.ConvertToString(c.ID)}
+func (c *ConverterImpl) mapMainCToMainD(c0 C) D {
+	return D{ID: c.customStructConverter.ConvertToString(c0.ID)}
 }
 
-func (c *Converter) ConvertSliceWithoutErrors(a []A) []B {
-	res := make([]B, len(a))
-	for i, s := range a {
-		res[i] = c.mapMainAToMainB(s)
+func (c *ConverterImpl) mapMainDToMainC(d0 D) (C, error) {
+	d0ID, err := c.customStructConverter.ConvertToInt(d0.ID)
+	if err != nil {
+		return C{}, err
 	}
-	return res
+
+	return C{ID: d0ID}, nil
 }
 
-func (c *Converter) Convert(a Foo) (Bar, error) {
-	return c.mapMainFooToMainBar(a)
+func (c *ConverterImpl) mapMainAToMainB(a0 A) B {
+	return B{Name: a0.Name}
 }
 
-func (c *Converter) ConvertImport(f foo.Foo) (bar.Bar, error) {
-	return c.mapFooFooToBarBar(f)
+func (c *ConverterImpl) ConvertNameless(f0 Foo) (Bar, error) {
+	return c.mapMainFooToMainBar(f0)
 }
 
-func (c *Converter) ConvertImportStruct(c C) D {
-	return c.mapMainCToMainD(c)
-}
-
-func (c *Converter) ConvertImportStructWithError(d D) (C, error) {
-	return c.mapMainDToMainC(d)
-}
-
-func (c *Converter) ConvertNameless(f Foo) (Bar, error) {
-	return c.mapMainFooToMainBar(f)
-}
-
-func (c *Converter) ConvertSlice(a []Foo) ([]Bar, error) {
+func (c *ConverterImpl) ConvertSlice(a0 []Foo) ([]Bar, error) {
 	var err error
-	res := make([]Bar, len(a))
-	for i, s := range a {
+	res := make([]Bar, len(a0))
+	for i, s := range a0 {
 		res[i], err = c.mapMainFooToMainBar(s)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return res, nil
+}
+
+func (c *ConverterImpl) ConvertSliceWithoutErrors(a0 []A) []B {
+	res := make([]B, len(a0))
+	for i, s := range a0 {
+		res[i] = c.mapMainAToMainB(s)
+	}
+	return res
+}
+
+func (c *ConverterImpl) Convert(a0 Foo) (Bar, error) {
+	return c.mapMainFooToMainBar(a0)
+}
+
+func (c *ConverterImpl) ConvertImport(f0 foo.Foo) (bar.Bar, error) {
+	return c.mapFooFooToBarBar(f0)
+}
+
+func (c *ConverterImpl) ConvertImportStruct(c0 C) D {
+	return c.mapMainCToMainD(c0)
+}
+
+func (c *ConverterImpl) ConvertImportStructWithError(d0 D) (C, error) {
+	return c.mapMainDToMainC(d0)
 }

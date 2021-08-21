@@ -25,7 +25,8 @@ func ParseUUID(id string) (uuid.UUID, error) {
 }
 
 type Foo struct {
-	CustomID string `map:"ExternalID,ParseUUID"`
+	//CustomID string `map:"ExternalID,ParseUUID"`
+	CustomID string `map:"ExternalID,github.com/google/uuid/Parse"`
 	FakeAge  int    `map:"Age"`
 	name     string
 	Task     Task
@@ -51,7 +52,7 @@ func CustomConverter(a string) int {
 	return i
 }
 
-//go:generate go run main.go -type Converter
+//go:generate go run main.go -type Converter -suffix=Impl
 type Converter interface {
 	ConvertNameless(Foo) (Bar, error) // Accepts err.
 	Convert(a Foo) (Bar, error)       // Accepts err.
@@ -98,6 +99,14 @@ type Bar struct {
 	RealAge    int `json:"age" map:"Age"`
 	Task       Task
 	ExternalID uuid.UUID
+}
+
+func convert(c Converter) {
+	fmt.Println(c.Convert(Foo{
+		name:     "john",
+		id:       uuid.New().String(),
+		CustomID: uuid.New().String(),
+	}))
 }
 
 func main() {
@@ -246,13 +255,15 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 		f, ok := from.Type.StructFields[key]
 		if ok {
 			// `map:"CustomField,CustomFunc"`
-
-			fmt.Println(f.Tag)
 			if tag := f.Tag; tag != nil && tag.HasFunc() {
 				if tag.IsFunc() {
+					fieldPkgPath := pkgPath
+					if tag.IsImported() {
+						fieldPkgPath = tag.PkgPath
+					}
 
 					// Load the function.
-					pkg := mapper.LoadPackage(pkgPath)
+					pkg := mapper.LoadPackage(fieldPkgPath)
 					obj := mapper.LookupType(pkg, tag.Func)
 					if obj == nil {
 						panic(fmt.Sprintf("mapper: func not found: %s", tag.Func))
@@ -277,12 +288,17 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 							In: f,
 						})
 						// Name: aName,
-						dict[Id(t.Name)] = Id(from.Name + f.Name)
+						dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + f.Name)
 						continue
 					}
 
-					// Name: ParseUUID(a.Name)
-					dict[Id(t.Name)] = Id(fn.Name).Call(Id(from.Name).Dot(f.Name))
+					if tag.IsImported() {
+						// Name: uuid.Parse(a.Name)
+						dict[Id(t.Name)] = Qual(fn.PkgPath, fn.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
+					} else {
+						// Name: ParseUUID(a.Name)
+						dict[Id(t.Name)] = Id(fn.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
+					}
 				}
 
 				if tag.IsMethod() {
@@ -291,19 +307,18 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 					if tag.IsImported() {
 						fieldPkgPath = tag.PkgPath
 					}
-					fmt.Println("does it require import? fieldPkgPath", fieldPkgPath)
 
 					// Load the function.
 					pkg := mapper.LoadPackage(fieldPkgPath)
-					obj := mapper.LookupType(pkg, tag.Pkg)
+					obj := mapper.LookupType(pkg, tag.TypeName)
 					if obj == nil {
-						panic(fmt.Sprintf("mapper: type not found: %s", tag.Pkg))
+						panic(fmt.Sprintf("mapper: type not found: %s", tag.TypeName))
 					}
 
 					typ := mapper.NewType(obj.Type())
 					switch {
 					case typ.IsInterface:
-						log.Println("interface imports", typ)
+						panic("mapper: interface converters not implemented")
 					case typ.IsStruct:
 						method := typ.StructMethods[tag.Func]
 						if method.From.Type.Type != f.Type.Type {
@@ -316,23 +331,23 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 							embeddedStructMethodsWithError = append(embeddedStructMethodsWithError, mapperFunc{
 								Fn:         &method,
 								In:         f,
-								structName: mapper.LowerFirst(tag.Pkg),
+								structName: mapper.LowerFirst(tag.TypeName),
 							})
 							// Name: aName,
-							dict[Id(t.Name)] = Id(from.Name + f.Name)
+							dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + f.Name)
 							continue
 						}
-						g.uses[mapper.LowerFirst(tag.Pkg)] = *typ
+						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
 
 						// Name: c.struct.CustomMethod(a.Name)
-						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.Pkg)).Dot(method.Name).Call(Id(from.Name).Dot(f.Name))
+						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.TypeName)).Dot(method.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
 					}
 				}
 				continue
 			}
 
 			// Name: a.Name
-			dict[Id(t.Name)] = Id(from.Name).Dot(f.Name)
+			dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0)).Dot(f.Name)
 			continue
 		}
 
@@ -340,23 +355,23 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 		if m, ok := from.Type.StructMethods[key]; ok {
 			// The name of the method matches the name of field, e.g. to.Age: from.Age()
 			if m.To.Type.Type != t.Type.Type {
-				panic("method signature found, but types are different")
+				panic("mapper: method signature found, but types are different")
 			}
 			if m.From != nil {
-				panic("method must not accept any arguments")
+				panic("mapper: method must not accept any arguments")
 			}
 
 			// TODO: If this has error, handle the return errors.
 			if m.Error != nil {
 				// Name: aName,
-				dict[Id(t.Name)] = Id(from.Name + m.Name)
+				dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + m.Name)
 				methodsWithError = append(methodsWithError, m)
 			} else {
 				// Name: a.Name()
-				dict[Id(t.Name)] = Id(from.Name).Dot(m.Name).Call()
+				dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0)).Dot(m.Name).Call()
 			}
 		} else {
-			panic("method signature not found")
+			panic("mapper: method signature not found")
 		}
 	}
 
@@ -377,7 +392,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 			// if err != nil {
 			//	return Bar{}, err
 			// }
-			g.Add(List(Id(from.Name+fn.Name), Id("err")).Op(":=").Id(from.Name).Dot(fn.Name).Call())
+			g.Add(List(Id(argsWithIndex(from.Name, 0)+fn.Name), Id("err")).Op(":=").Id(argsWithIndex(from.Name, 0)).Dot(fn.Name).Call())
 			g.Add(returnOnError.Clone())
 		}
 	}
@@ -388,7 +403,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 			// if err != nil {
 			//	return Bar{}, err
 			// }
-			g.Add(List(Id(from.Name+fn.In.Name), Id("err")).Op(":=").Id(fn.Fn.Name).Call(Id(from.Name).Dot(fn.In.Name)))
+			g.Add(List(Id(argsWithIndex(from.Name, 0)+fn.In.Name), Id("err")).Op(":=").Qual(fn.Fn.PkgPath, fn.Fn.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(fn.In.Name)))
 			g.Add(returnOnError.Clone())
 		}
 	}
@@ -399,7 +414,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 			// if err != nil {
 			//	return Bar{}, err
 			// }
-			g.Add(List(Id(from.Name+fn.In.Name), Id("err")).Op(":=").Id("c").Dot(fn.structName).Dot(fn.Fn.Name).Call(Id(from.Name).Dot(fn.In.Name)))
+			g.Add(List(Id(argsWithIndex(from.Name, 0)+fn.In.Name), Id("err")).Op(":=").Id("c").Dot(fn.structName).Dot(fn.Fn.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(fn.In.Name)))
 			g.Add(returnOnError.Clone())
 		}
 	}
@@ -421,7 +436,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 		Params(Id("c").Op("*").Id(typeName)). // (c *Converter)
 		Id(fnName).                           // mapMainAToMainB
 		Params(
-			Id(from.Name).Qual(relativeTo(pkgPath, from.Type.PkgPath), from.Type.Type),
+			Id(argsWithIndex(from.Name, 0)).Qual(relativeTo(pkgPath, from.Type.PkgPath), from.Type.Type),
 		). // (a A)
 		Do(genReturnType).
 		BlockFunc(func(g *Group) {
@@ -498,7 +513,7 @@ func (g *Generator) generateUsePrivateMapper(f *jen.File, fn mapper.Func) {
 
 	genInputType := func(g *Group) {
 		g.Add(
-			Id(from.Name).Do(func(s *Statement) {
+			Id(argsWithIndex(from.Name, 0)).Do(func(s *Statement) {
 				if from.Type.IsSlice {
 					s.Add(Index())
 				}
@@ -546,8 +561,8 @@ func (g *Generator) generateUsePrivateMapper(f *jen.File, fn mapper.Func) {
 				if fn.Error != nil {
 					g.Add(Var().Id("err").Id("error"))
 				}
-				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(Id(from.Name)))))
-				g.Add(For(List(Id("i"), Id("s")).Op(":=").Range().Id(from.Name)).BlockFunc(func(g *Group) {
+				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(Id(argsWithIndex(from.Name, 0))))))
+				g.Add(For(List(Id("i"), Id("s")).Op(":=").Range().Id(argsWithIndex(from.Name, 0))).BlockFunc(func(g *Group) {
 					if fn.Error != nil {
 						g.Add(List(
 							Id("res").Index(Id("i")),
@@ -574,7 +589,7 @@ func (g *Generator) generateUsePrivateMapper(f *jen.File, fn mapper.Func) {
 				}
 			} else {
 				// Ignore pointers.
-				g.Add(Return(Id("c").Dot(fn.NormalizedName()).Call(Id(from.Name)))) // return c.mapMainAToMainB(a)
+				g.Add(Return(Id("c").Dot(fn.NormalizedName()).Call(Id(argsWithIndex(from.Name, 0))))) // return c.mapMainAToMainB(a)
 			}
 		}).Line()
 }
@@ -591,4 +606,8 @@ func pointerOp(m *mapper.Type, op string) string {
 		return ""
 	}
 	return op
+}
+
+func argsWithIndex(name string, index int) string {
+	return fmt.Sprintf("%s%d", name, index)
 }
