@@ -101,10 +101,17 @@ func ExtractFunc(fn *types.Func) *Func {
 			}
 		}
 	}
+
+	var pkgName, pkgPath string
+	if pkg := fn.Pkg(); pkg != nil {
+		pkgName = pkg.Name()
+		pkgPath = pkg.Path()
+	}
+
 	return &Func{
 		Name:    fn.Name(),
-		Pkg:     fn.Pkg().Name(),
-		PkgPath: fn.Pkg().Path(),
+		Pkg:     pkgName,
+		PkgPath: pkgPath,
 		From:    from,
 		To:      to,
 		Error:   err,

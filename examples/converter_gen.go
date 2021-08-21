@@ -8,31 +8,39 @@ import (
 )
 
 type ConverterImpl struct {
-	customStructConverter *CustomStructConverter
+	customStructConverter    *CustomStructConverter
+	customInterfaceConverter CustomInterfaceConverter
 }
 
-func NewConverterImpl(customStructConverter *CustomStructConverter) *ConverterImpl {
-	return &ConverterImpl{customStructConverter: customStructConverter}
+func NewConverterImpl(customStructConverter *CustomStructConverter, customInterfaceConverter CustomInterfaceConverter) *ConverterImpl {
+	return &ConverterImpl{
+		customInterfaceConverter: customInterfaceConverter,
+		customStructConverter:    customStructConverter,
+	}
 }
 
-func (c *ConverterImpl) mapMainFooToMainBar(a0 Foo) (Bar, error) {
-	a0ID, err := a0.ID()
+func (c *ConverterImpl) mapMainFooToMainBar(f0 Foo) (Bar, error) {
+	f0ID, err := f0.ID()
 	if err != nil {
 		return Bar{}, err
 	}
 
-	a0CustomID, err := uuid.Parse(a0.CustomID)
+	f0CustomID, err := uuid.Parse(f0.CustomID)
 	if err != nil {
 		return Bar{}, err
 	}
 
 	return Bar{
-		ExternalID: a0CustomID,
-		ID:         a0ID,
-		Name:       a0.Name(),
-		RealAge:    a0.FakeAge,
-		Task:       a0.Task,
+		ExternalID: f0CustomID,
+		ID:         f0ID,
+		Name:       f0.Name(),
+		RealAge:    f0.FakeAge,
+		Task:       f0.Task,
 	}, nil
+}
+
+func (c *ConverterImpl) mapMainAToMainB(a0 A) B {
+	return B{Name: a0.Name}
 }
 
 func (c *ConverterImpl) mapFooFooToBarBar(f0 foo.Foo) (bar.Bar, error) {
@@ -48,20 +56,27 @@ func (c *ConverterImpl) mapFooFooToBarBar(f0 foo.Foo) (bar.Bar, error) {
 }
 
 func (c *ConverterImpl) mapMainCToMainD(c0 C) D {
-	return D{ID: c.customStructConverter.ConvertToString(c0.ID)}
+	return D{
+		Age: c.customInterfaceConverter.ConvertToString(c0.Age),
+		ID:  c.customStructConverter.ConvertToString(c0.ID),
+	}
 }
 
 func (c *ConverterImpl) mapMainDToMainC(d0 D) (C, error) {
+	d0Age, err := c.customInterfaceConverter.ConvertToInt(d0.Age)
+	if err != nil {
+		return C{}, err
+	}
+
 	d0ID, err := c.customStructConverter.ConvertToInt(d0.ID)
 	if err != nil {
 		return C{}, err
 	}
 
-	return C{ID: d0ID}, nil
-}
-
-func (c *ConverterImpl) mapMainAToMainB(a0 A) B {
-	return B{Name: a0.Name}
+	return C{
+		Age: d0Age,
+		ID:  d0ID,
+	}, nil
 }
 
 func (c *ConverterImpl) ConvertNameless(f0 Foo) (Bar, error) {

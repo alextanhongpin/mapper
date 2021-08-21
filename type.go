@@ -77,6 +77,17 @@ func NewType(typ types.Type) *Type {
 			isStruct = true
 			structFields = ExtractStructFields(structType)
 		}
+
+		// The underlying type could be a interface.
+		if types.IsInterface(t.Underlying()) {
+			isInterface = true
+			interfaceMethods = ExtractInterfaceMethods(t.Underlying().(*types.Interface))
+		}
+		// This does not work
+		//if interfaceType, isInterface := t.Underlying().(*types.Interface); isInterface {
+		//isInterface = true
+		//interfaceMethods = ExtractInterfaceMethods(interfaceType)
+		//}
 	case *types.Struct:
 		isStruct = true
 		structFields = ExtractStructFields(t)

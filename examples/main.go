@@ -11,6 +11,7 @@ import (
 	"github.com/alextanhongpin/mapper/examples/foo"
 	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 )
 
@@ -76,10 +77,13 @@ type B struct {
 }
 
 type C struct {
-	ID int `json:"id" map:",CustomStructConverter.ConvertToString"`
+	ID  int `json:"id" map:",CustomStructConverter.ConvertToString"`
+	Age int `json:"age" map:",CustomInterfaceConverter.ConvertToString"`
 }
+
 type D struct {
-	ID string `map:",CustomStructConverter.ConvertToInt"`
+	ID  string `map:",CustomStructConverter.ConvertToInt"`
+	Age string `json:"age" map:",CustomInterfaceConverter.ConvertToInt"`
 }
 
 type CustomStructConverter struct {
@@ -91,6 +95,11 @@ func (c *CustomStructConverter) ConvertToString(n int) string {
 
 func (c *CustomStructConverter) ConvertToInt(s string) (int, error) {
 	return strconv.Atoi(s)
+}
+
+type CustomInterfaceConverter interface {
+	ConvertToString(a int) string
+	ConvertToInt(a string) (int, error)
 }
 
 type Bar struct {
@@ -182,13 +191,17 @@ func (g *Generator) generateConverter(f *jen.File) {
 	//  structName *structPkg.StructName
 	//}
 
-	f.Type().Id(g.opt.TypeName).Struct(Do(func(s *Statement) {
-		for structName, use := range g.uses {
+	f.Type().Id(g.opt.TypeName).StructFunc(func(s *Group) {
+		for typeName, use := range g.uses {
 			if use.IsStruct {
-				s.Add(Id(structName), Op("*").Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type))
+				s.Add(Id(typeName), Op("*").Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type))
+			} else if use.IsInterface {
+				s.Add(Id(typeName), Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type))
+			} else {
+				panic("mapper: not implemented")
 			}
 		}
-	})).Line()
+	}).Line()
 }
 
 func (g *Generator) generateConverterConstructor(f *jen.File) {
@@ -205,13 +218,17 @@ func (g *Generator) generateConverterConstructor(f *jen.File) {
 			if use.IsStruct {
 				//dict[Id(structName)] = Op("*").Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type)
 				group.Add(Id(structName), Op("*").Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type))
+			} else if use.IsInterface {
+				group.Add(Id(structName), Qual(relativeTo(g.opt.PkgPath, use.PkgPath), use.Type))
+			} else {
+				panic("mapper: not implemented")
 			}
 		}
 	}).Op("*").Id(typeName).Block(
 		Return(Op("&").Id(typeName).ValuesFunc(func(group *Group) {
 			dict := make(Dict)
 			for structName, use := range g.uses {
-				if use.IsStruct {
+				if use.IsStruct || use.IsInterface {
 					dict[Id(structName)] = Id(structName)
 				}
 			}
@@ -315,10 +332,37 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 						panic(fmt.Sprintf("mapper: type not found: %s", tag.TypeName))
 					}
 
+					if _, ok := obj.Type().(*types.Named); !ok {
+						panic("mapper: not a named type")
+					}
+
 					typ := mapper.NewType(obj.Type())
+
+					//typ := mapper.NewType(obj.Type())
 					switch {
 					case typ.IsInterface:
-						panic("mapper: interface converters not implemented")
+						method := typ.InterfaceMethods[tag.Func]
+						if method.From.Type.Type != f.Type.Type {
+							panic("mapper: method input type does not match")
+						}
+						if method.To.Type.Type != t.Type.Type {
+							panic("mapper: method return type does not match")
+						}
+						if method.Error != nil {
+							embeddedStructMethodsWithError = append(embeddedStructMethodsWithError, mapperFunc{
+								Fn:         &method,
+								In:         f,
+								structName: mapper.LowerFirst(tag.TypeName),
+							})
+							// Name: aName,
+							dict[Id(t.Name)] = Id(argsWithIndex(from.Name, 0) + f.Name)
+							continue
+						}
+						g.uses[mapper.LowerFirst(tag.TypeName)] = *typ
+
+						// Name: c.interface.CustomMethod(a.Name)
+						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.TypeName)).Dot(method.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
+
 					case typ.IsStruct:
 						method := typ.StructMethods[tag.Func]
 						if method.From.Type.Type != f.Type.Type {
@@ -341,6 +385,9 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 						// Name: c.struct.CustomMethod(a.Name)
 						dict[Id(t.Name)] = Id("c").Dot(mapper.LowerFirst(tag.TypeName)).Dot(method.Name).Call(Id(argsWithIndex(from.Name, 0)).Dot(f.Name))
+					default:
+						spew.Dump(typ)
+						panic("mapper: not implemented" + f.Name)
 					}
 				}
 				continue
