@@ -34,7 +34,7 @@ func NewType(typ types.Type) *Type {
 	switch t := typ.(type) {
 	case *types.Interface:
 		isInterface = true
-		interfaceMethods = extractInterfaceMethods(t)
+		interfaceMethods = ExtractInterfaceMethods(t)
 	case *types.Pointer:
 		isPointer = true
 		typ = t.Elem()
@@ -69,12 +69,17 @@ func NewType(typ types.Type) *Type {
 		}
 		fieldType = obj.Name()
 		structMethods = extractNamedMethods(t)
+		// May not have struct methods.
+		isStruct = len(structMethods) > 0
 
 		// The underlying type could be a struct.
 		if structType, isStruct := t.Underlying().(*types.Struct); isStruct {
 			isStruct = true
-			structFields = extractStructFields(structType)
+			structFields = ExtractStructFields(structType)
 		}
+	case *types.Struct:
+		isStruct = true
+		structFields = ExtractStructFields(t)
 	default:
 		fieldType = t.String()
 	}

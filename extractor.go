@@ -112,7 +112,7 @@ func ExtractFunc(fn *types.Func) *Func {
 	}
 }
 
-func extractInterfaceMethods(in *types.Interface) map[string]Func {
+func ExtractInterfaceMethods(in *types.Interface) map[string]Func {
 	result := make(map[string]Func)
 	for i := 0; i < in.NumMethods(); i++ {
 		fn := ExtractFunc(in.Method(i))
@@ -121,7 +121,7 @@ func extractInterfaceMethods(in *types.Interface) map[string]Func {
 	return result
 }
 
-func extractStructFields(structType *types.Struct) map[string]StructField {
+func ExtractStructFields(structType *types.Struct) map[string]StructField {
 	fields := make(map[string]StructField)
 	for i := 0; i < structType.NumFields(); i++ {
 		field := structType.Field(i)

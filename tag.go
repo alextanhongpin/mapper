@@ -11,7 +11,7 @@ var tagRe *regexp.Regexp
 
 func init() {
 	var err error
-	tagRe, err = regexp.Compile(`map:"((\w+)?,?(\w+)?)"`)
+	tagRe, err = regexp.Compile(`map:"(([\w.]+)?,?([\w.]+)?)"`)
 	if err != nil {
 		panic(fmt.Sprintf("mapper: compile tag regex error: %s", err))
 	}

@@ -6,34 +6,45 @@ import (
 	foo "github.com/alextanhongpin/mapper/examples/foo"
 )
 
-type Converter struct{}
-
-func NewConverter() *Converter {
-	return &Converter{}
+type Converter struct {
+	customStructConverter *CustomStructConverter
 }
 
-func (c *Converter) mapMainAToMainB(a A) B {
-	return B{Name: a.Name}
+func NewConverter(customStructConverter *CustomStructConverter) *Converter {
+	return &Converter{customStructConverter: customStructConverter}
 }
 
-func (c *Converter) mapMainFooToMainBar(a Foo) (Bar, error) {
-	aID, err := a.ID()
+func (c *Converter) mapMainDToMainC(d D) (C, error) {
+	dID, err := c.customStructConverter.ConvertToInt(d.ID)
+	if err != nil {
+		return C{}, err
+	}
+
+	return C{ID: dID}, nil
+}
+
+func (c *Converter) mapMainFooToMainBar(f Foo) (Bar, error) {
+	fID, err := f.ID()
 	if err != nil {
 		return Bar{}, err
 	}
 
-	aCustomID, err := ParseUUID(a.CustomID)
+	fCustomID, err := ParseUUID(f.CustomID)
 	if err != nil {
 		return Bar{}, err
 	}
 
 	return Bar{
-		ExternalID: aCustomID,
-		ID:         aID,
-		Name:       a.Name(),
-		RealAge:    a.FakeAge,
-		Task:       a.Task,
+		ExternalID: fCustomID,
+		ID:         fID,
+		Name:       f.Name(),
+		RealAge:    f.FakeAge,
+		Task:       f.Task,
 	}, nil
+}
+
+func (c *Converter) mapMainAToMainB(a A) B {
+	return B{Name: a.Name}
 }
 
 func (c *Converter) mapFooFooToBarBar(f foo.Foo) (bar.Bar, error) {
@@ -46,6 +57,10 @@ func (c *Converter) mapFooFooToBarBar(f foo.Foo) (bar.Bar, error) {
 		ID:   fID,
 		Name: f.Name,
 	}, nil
+}
+
+func (c *Converter) mapMainCToMainD(c C) D {
+	return D{ID: c.customStructConverter.ConvertToString(c.ID)}
 }
 
 func (c *Converter) ConvertSliceWithoutErrors(a []A) []B {
@@ -62,6 +77,14 @@ func (c *Converter) Convert(a Foo) (Bar, error) {
 
 func (c *Converter) ConvertImport(f foo.Foo) (bar.Bar, error) {
 	return c.mapFooFooToBarBar(f)
+}
+
+func (c *Converter) ConvertImportStruct(c C) D {
+	return c.mapMainCToMainD(c)
+}
+
+func (c *Converter) ConvertImportStructWithError(d D) (C, error) {
+	return c.mapMainDToMainC(d)
 }
 
 func (c *Converter) ConvertNameless(f Foo) (Bar, error) {
