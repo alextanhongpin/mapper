@@ -4,120 +4,13 @@ import (
 	"fmt"
 	"go/types"
 	"log"
-	"strconv"
 
 	"github.com/alextanhongpin/mapper"
-	"github.com/alextanhongpin/mapper/examples/bar"
-	"github.com/alextanhongpin/mapper/examples/foo"
 	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
-	"github.com/google/uuid"
 )
 
 const GeneratorName = "mapper"
-
-type Task struct {
-	Name string
-}
-
-func ParseUUID(id string) (uuid.UUID, error) {
-	return uuid.Parse(id)
-}
-
-type Foo struct {
-	//CustomID string `map:"ExternalID,ParseUUID"`
-	CustomID string `map:"ExternalID,github.com/google/uuid/Parse"`
-	FakeAge  int    `map:"Age"`
-	name     string
-	Task     Task
-	id       string
-	SomeID   string `map:"ImportedID,github.com/alextanhongpin/mapper/examples/foo/Fooer.ConvertID"`
-	//Remarks string // Fail with extra fields now.
-	// CustomName `mapper:"YourName"`
-	// CustomMapper `mapper:"github.com/yourorganization/yourpackage/struct.Method"`
-	// CustomInterface `mapper:"github.com/yourorganization/yourpackage/interface.Method"`
-	// CustomFunction`mapper:"github.com/yourorganization/yourpackage.funcName"`
-}
-
-type Bar struct {
-	ID         uuid.UUID
-	Name       string
-	RealAge    int `json:"age" map:"Age"`
-	Task       Task
-	ExternalID uuid.UUID
-	ImportedID uuid.UUID
-}
-
-func (f Foo) ID() (uuid.UUID, error) {
-	return uuid.Parse(f.id)
-}
-
-//func (f Foo) Name(ctx context.Context) string { // Panics, since it accepts arguments.
-func (f Foo) Name() string {
-	return f.name
-}
-
-func CustomConverter(a string) int {
-	i, _ := strconv.Atoi(a)
-	return i
-}
-
-//go:generate go run main.go -type Converter -suffix=Impl
-type Converter interface {
-	ConvertNameless(Foo) (Bar, error) // Accepts err.
-	Convert(a Foo) (Bar, error)       // Accepts err.
-	ConvertImport(f foo.Foo) (b bar.Bar, err error)
-	// Pointers not accepted
-	//ConvertReturnPointer(a Foo) (*Bar, error) // Accepts err.
-	//ConvertImportPointer(f *foo.Foo) (b *bar.Bar, err error)
-	//ConvertWithContext(ctx context.Context, foo Foo) (Bar)
-	ConvertSlice(a []Foo) ([]Bar, error) // Accepts err.
-	ConvertSliceWithoutErrors(a []A) []B // Accepts err.
-	ConvertImportStruct(C) D
-	ConvertImportStructWithError(D) (C, error)
-}
-
-type A struct {
-	Name string
-}
-
-type B struct {
-	Name string
-}
-
-type C struct {
-	ID  int `json:"id" map:",CustomStructConverter.ConvertToString"`
-	Age int `json:"age" map:",CustomInterfaceConverter.ConvertToString"`
-}
-
-type D struct {
-	ID  string `map:",CustomStructConverter.ConvertToInt"`
-	Age string `json:"age" map:",CustomInterfaceConverter.ConvertToInt"`
-}
-
-type CustomStructConverter struct {
-}
-
-func (c *CustomStructConverter) ConvertToString(n int) string {
-	return fmt.Sprint(n)
-}
-
-func (c *CustomStructConverter) ConvertToInt(s string) (int, error) {
-	return strconv.Atoi(s)
-}
-
-type CustomInterfaceConverter interface {
-	ConvertToString(a int) string
-	ConvertToInt(a string) (int, error)
-}
-
-func convert(c Converter) {
-	fmt.Println(c.Convert(Foo{
-		name:     "john",
-		id:       uuid.New().String(),
-		CustomID: uuid.New().String(),
-	}))
-}
 
 func main() {
 	if err := mapper.New(func(opt mapper.Option) error {
