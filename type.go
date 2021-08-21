@@ -6,6 +6,7 @@ import (
 
 type Type struct {
 	Type             string `example:"NullString"`
+	Pkg              string `example:"sql"`
 	PkgPath          string `example:"database/sql"`
 	IsStruct         bool
 	IsPointer        bool
@@ -25,7 +26,7 @@ type Type struct {
 // NewType recursively checks for the field type.
 func NewType(typ types.Type) *Type {
 	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool
-	var fieldPkgPath, fieldType string
+	var fieldPkgPath, fieldPkg, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
 	var structMethods, interfaceMethods map[string]Func
@@ -63,6 +64,7 @@ func NewType(typ types.Type) *Type {
 	case *types.Named:
 		obj := t.Obj()
 		if pkg := obj.Pkg(); pkg != nil {
+			fieldPkg = pkg.Name()
 			fieldPkgPath = pkg.Path()
 		}
 		fieldType = obj.Name()
@@ -73,9 +75,6 @@ func NewType(typ types.Type) *Type {
 			isStruct = true
 			structFields = extractStructFields(structType)
 		}
-	case *types.Struct:
-		isStruct = true
-		structFields = extractStructFields(t)
 	default:
 		fieldType = t.String()
 	}
@@ -83,6 +82,7 @@ func NewType(typ types.Type) *Type {
 	isError = fieldType == "error"
 	return &Type{
 		Type:             fieldType,
+		Pkg:              fieldPkg,
 		PkgPath:          fieldPkgPath,
 		IsStruct:         isStruct,
 		IsSlice:          isSlice,

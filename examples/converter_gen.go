@@ -12,7 +12,11 @@ func NewConverter() *Converter {
 	return &Converter{}
 }
 
-func (c *Converter) mapExamplesFooToExamplesBar(a Foo) (Bar, error) {
+func (c *Converter) mapMainAToMainB(a A) B {
+	return B{Name: a.Name}
+}
+
+func (c *Converter) mapMainFooToMainBar(a Foo) (Bar, error) {
 	aID, err := a.ID()
 	if err != nil {
 		return Bar{}, err
@@ -44,12 +48,16 @@ func (c *Converter) mapFooFooToBarBar(f foo.Foo) (bar.Bar, error) {
 	}, nil
 }
 
-func (c *Converter) mapExamplesAToExamplesB(a A) B {
-	return B{Name: a.Name}
+func (c *Converter) ConvertSliceWithoutErrors(a []A) []B {
+	res := make([]B, len(a))
+	for i, s := range a {
+		res[i] = c.mapMainAToMainB(s)
+	}
+	return res
 }
 
 func (c *Converter) Convert(a Foo) (Bar, error) {
-	return c.mapExamplesFooToExamplesBar(a)
+	return c.mapMainFooToMainBar(a)
 }
 
 func (c *Converter) ConvertImport(f foo.Foo) (bar.Bar, error) {
@@ -57,25 +65,17 @@ func (c *Converter) ConvertImport(f foo.Foo) (bar.Bar, error) {
 }
 
 func (c *Converter) ConvertNameless(f Foo) (Bar, error) {
-	return c.mapExamplesFooToExamplesBar(f)
+	return c.mapMainFooToMainBar(f)
 }
 
 func (c *Converter) ConvertSlice(a []Foo) ([]Bar, error) {
 	var err error
 	res := make([]Bar, len(a))
 	for i, s := range a {
-		res[i], err = c.mapExamplesFooToExamplesBar(s)
+		res[i], err = c.mapMainFooToMainBar(s)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return res, nil
-}
-
-func (c *Converter) ConvertSliceWithoutErrors(a []A) []B {
-	res := make([]B, len(a))
-	for i, s := range a {
-		res[i] = c.mapExamplesAToExamplesB(s)
-	}
-	return res
 }

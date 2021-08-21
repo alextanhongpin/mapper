@@ -13,7 +13,10 @@ type FuncArg struct {
 }
 
 type Func struct {
-	Name    string
+	Name string
+	// pkg name can be different from package path, e.g. github.com/alextanhongpin/mapper/examples
+	// can have package `main` instead of `examples`.
+	Pkg     string
 	PkgPath string
 	From    *FuncArg
 	To      *FuncArg
@@ -22,7 +25,7 @@ type Func struct {
 }
 
 func (f *Func) normalizedArg(arg *FuncArg) string {
-	_, s := path.Split(fullName(arg.Type.PkgPath, arg.Type.Type))
+	_, s := path.Split(fullName(arg.Type.Pkg, arg.Type.Type))
 	s = strings.ReplaceAll(s, ".", "")
 	s = UpperCommonInitialism(s)
 	return s
@@ -100,6 +103,7 @@ func ExtractFunc(fn *types.Func) *Func {
 	}
 	return &Func{
 		Name:    fn.Name(),
+		Pkg:     fn.Pkg().Name(),
 		PkgPath: fn.Pkg().Path(),
 		From:    from,
 		To:      to,
