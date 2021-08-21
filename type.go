@@ -17,8 +17,8 @@ type Type struct {
 	MapKey           *Type
 	MapValue         *Type
 	StructFields     map[string]StructField
-	StructMethods    []Func
-	InterfaceMethods []Func
+	StructMethods    map[string]Func
+	InterfaceMethods map[string]Func
 	T                types.Type
 }
 
@@ -28,7 +28,7 @@ func NewType(typ types.Type) *Type {
 	var fieldPkgPath, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
-	var structMethods, interfaceMethods []Func
+	var structMethods, interfaceMethods map[string]Func
 
 	switch t := typ.(type) {
 	case *types.Interface:

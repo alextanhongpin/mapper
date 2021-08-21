@@ -54,10 +54,11 @@ func fullName(pkgPath, name string) string {
 	return fmt.Sprintf("%s.%s", pkgPath, name)
 }
 
-func extractNamedMethods(t *types.Named) []Func {
-	result := make([]Func, t.NumMethods())
+func extractNamedMethods(t *types.Named) map[string]Func {
+	result := make(map[string]Func)
 	for i := 0; i < t.NumMethods(); i++ {
-		result[i] = *ExtractFunc(t.Method(i))
+		fn := ExtractFunc(t.Method(i))
+		result[fn.Name] = *fn
 	}
 	return result
 }
@@ -107,10 +108,11 @@ func ExtractFunc(fn *types.Func) *Func {
 	}
 }
 
-func extractInterfaceMethods(in *types.Interface) []Func {
-	result := make([]Func, in.NumExplicitMethods())
-	for i := 0; i < in.NumExplicitMethods(); i++ {
-		result[i] = *ExtractFunc(in.ExplicitMethod(i))
+func extractInterfaceMethods(in *types.Interface) map[string]Func {
+	result := make(map[string]Func)
+	for i := 0; i < in.NumMethods(); i++ {
+		fn := ExtractFunc(in.Method(i))
+		result[fn.Name] = *fn
 	}
 	return result
 }

@@ -54,9 +54,9 @@ func NewTag(tag string) (*Tag, bool) {
 type Tag struct {
 	Name string
 	// If the pkgPath is not set, we assume it to be the same as the current root directory.
-	PkgPath string
+	PkgPath string `example:"github.com/your-org/your-pkg"`
 	// If the `pkg` is not empty, it could most likely be an interface or struct method.
-	Pkg string
+	Pkg string `example:"YourStruct.YourMethod|YourInterface.YourMethod"`
 	// If `pkg` is empty, then this is a pure function import.
 	Func string
 }
@@ -72,6 +72,10 @@ func (t Tag) IsAlias() bool {
 }
 
 func (t Tag) IsFunc() bool {
+	return t.HasFunc() && t.Pkg == ""
+}
+
+func (t Tag) IsMethod() bool {
 	return t.HasFunc() && t.Pkg != ""
 }
 
