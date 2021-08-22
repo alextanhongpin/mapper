@@ -22,12 +22,19 @@ type A struct {
 	// Another example of external function, which returns error as second return
 	// parameter.
 	UUID string `map:",github.com/google/uuid/Parse"`
+
+	//privateID int `map:",github.com/alextanhongpin/mapper/examples/IntToString"`
 }
+
+//func (a A) PrivateID() int {
+//return a.privateID
+//}
 
 type B struct {
 	ID         string
 	ExternalID string
 	UUID       uuid.UUID
+	//PrivateID  string
 }
 
 // IntToString that resides locally.

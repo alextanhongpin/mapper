@@ -12,7 +12,6 @@ func NewMapperImpl() *MapperImpl {
 func (c *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
 	return Book{
 		ID:     b0.ID,
-		Price:  c.mapExamplesPriceToMainPrice(b0.Price),
 		Title:  b0.Title,
 		UserID: b0.UserID,
 	}, nil
@@ -26,19 +25,9 @@ func (c *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 }
 
 func (c *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
-	u0Books := make([]Book, len(u0.Books))
-	for i, each := range u0.Books {
-		var err error
-		u0Books[i], err = c.mapExamplesBookToMainBook(each)
-		if err != nil {
-			return User{}, err
-		}
-
-	}
 	return User{
-		Books: u0Books,
-		ID:    u0.ID,
-		Name:  u0.Name,
+		ID:   u0.ID,
+		Name: u0.Name,
 	}, nil
 }
 

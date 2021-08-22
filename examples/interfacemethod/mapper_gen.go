@@ -8,7 +8,7 @@ type MapperImpl struct {
 	examplesURLer examples.URLer
 }
 
-func NewMapperImpl(uRLer URLer, examplesURLer examples.URLer) *MapperImpl {
+func NewMapperImpl(examplesURLer examples.URLer, uRLer URLer) *MapperImpl {
 	return &MapperImpl{
 		examplesURLer: examplesURLer,
 		uRLer:         uRLer,

@@ -35,6 +35,68 @@ func NewGenerator(opt mapper.Option) *Generator {
 	}
 }
 
+type FieldResolver interface {
+	Name() string
+	Var() *Statement
+	Selection() *Statement
+	HasError() bool
+}
+
+type fieldResolver struct {
+	method *mapper.Func
+	field  *mapper.StructField
+	name   string
+}
+
+func NewMethodFieldResolver(method *mapper.Func, name string) *fieldResolver {
+	return &fieldResolver{
+		method: method,
+		name:   argsWithIndex(name, 0),
+	}
+}
+
+func NewStructFieldResolver(field *mapper.StructField, name string) *fieldResolver {
+	return &fieldResolver{
+		field: field,
+		name:  argsWithIndex(name, 0),
+	}
+}
+
+func (f fieldResolver) SetName(name string) {
+	f.name = argsWithIndex(name, 0)
+}
+
+func (f fieldResolver) Name() string {
+	return f.name
+}
+
+func (f fieldResolver) Var() *Statement {
+	if f.method != nil {
+		return Id(f.name + f.method.Name).Clone()
+	}
+	if f.field != nil {
+		return Id(f.name + f.field.Name).Clone()
+	}
+	return nil
+}
+
+func (f fieldResolver) Selection() *Statement {
+	if f.method != nil {
+		return Id(f.name).Dot(f.method.Name).Call().Clone()
+	}
+	if f.field != nil {
+		return Id(f.name).Dot(f.field.Name).Clone()
+	}
+	return nil
+}
+
+func (f fieldResolver) HasError() bool {
+	if f.method != nil {
+		return f.method.Error != nil
+	}
+	return false
+}
+
 func (g *Generator) Generate() error {
 	var (
 		pkgName = g.opt.PkgName
@@ -157,6 +219,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 		Fn         *mapper.Func
 		In         mapper.StructField
 		structName string
+		resolver   FieldResolver
 	}
 	var funcsWithError []mapperFunc
 	var methodsWithError []mapper.Func
@@ -165,12 +228,12 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 	dict := make(Dict)
 	for key, t := range to.Type.StructFields {
+		var resolver FieldResolver
 
 		// Check if there is a field mapping.
 		f, ok := from.Type.StructFields[key]
 		if ok {
-			fieldNameID := Id(argsWithIndex(from.Name, 0) + f.Name)         // aName
-			fieldSelectionID := Id(argsWithIndex(from.Name, 0)).Dot(f.Name) // a.Name
+			resolver = NewStructFieldResolver(&f, from.Name)
 
 			// `map:"CustomField,CustomFunc"`
 			if tag := f.Tag; tag != nil && tag.HasFunc() {
@@ -197,16 +260,17 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 					if fn.Error != nil {
 						funcsWithError = append(funcsWithError, mapperFunc{
-							Fn: fn,
-							In: f,
+							Fn:       fn,
+							In:       f,
+							resolver: resolver,
 						})
 						// Name: aName,
-						dict[Id(t.Name)] = fieldNameID.Clone()
+						dict[Id(t.Name)] = resolver.Var()
 						continue
 					}
 
 					// name: CustomFunc(a.Name)
-					dict[Id(t.Name)] = Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name).Call(fieldSelectionID.Clone())
+					dict[Id(t.Name)] = Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name).Call(resolver.Selection())
 				}
 
 				if tag.IsMethod() {
@@ -253,14 +317,15 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 							Fn:         &method,
 							In:         f,
 							structName: structPackageName,
+							resolver:   resolver,
 						})
 						// Name: aName,
-						dict[Id(t.Name)] = fieldNameID.Clone()
+						dict[Id(t.Name)] = resolver.Var()
 						continue
 					}
 
 					// Name: c.interfacePkgInterface.CustomMethod(a.Name)
-					dict[Id(t.Name)] = Id("c").Dot(structPackageName).Dot(method.Name).Call(fieldSelectionID.Clone())
+					dict[Id(t.Name)] = Id("c").Dot(structPackageName).Dot(method.Name).Call(resolver.Selection())
 				}
 				continue
 			} // End of custom tag function.
@@ -273,27 +338,26 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 				}
 
 				// Implement conversion for that field using existing converters.
-				for _, method := range g.opt.Type.InterfaceMethods {
-					if method.NormalizedSignature() == methodSignature {
-						if method.Error != nil || t.Type.IsSlice {
-							// Name: a0Name,
-							dict[Id(t.Name)] = fieldNameID.Clone()
-							privateMapperMethodsWithError = append(privateMapperMethodsWithError, mapperFunc{
-								Fn: &method,
-								In: f,
-							})
-						} else {
-							// Name: c.mapAtoB(a.Name)
-							dict[Id(t.Name)] = Id("c").Dot(method.NormalizedName()).Call(fieldSelectionID.Clone())
-						}
-						break
+				if method, exists := g.opt.Type.InterfaceMethods[methodSignature]; exists {
+					if method.Error != nil || t.Type.IsSlice {
+						// Name: a0Name,
+						dict[Id(t.Name)] = resolver.Var()
+						privateMapperMethodsWithError = append(privateMapperMethodsWithError, mapperFunc{
+							Fn:       &method,
+							In:       f,
+							resolver: resolver,
+						})
+					} else {
+						// Name: c.mapAtoB(a.Name)
+						dict[Id(t.Name)] = Id("c").Dot(method.NormalizedName()).Call(resolver.Selection())
 					}
+					break
 				}
 				continue
 			}
 
 			// Name: a.Name
-			dict[Id(t.Name)] = fieldSelectionID.Clone()
+			dict[Id(t.Name)] = resolver.Selection()
 			continue
 		}
 
@@ -302,25 +366,23 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 		// The name of the method matches the name of field, e.g. lhs.Age:
 		// rhs.Age()
 		if m, ok := from.Type.StructMethods[key]; ok {
+			resolver = NewMethodFieldResolver(&m, from.Name)
 			g.validateFunctionSignatureMatch(&m, f.Type, t.Type)
-
-			fieldName := argsWithIndex(from.Name, 0)      // a0
-			fieldNameID := Id(fieldName + m.Name)         // a0Name
-			fieldSelectionID := Id(fieldName).Dot(m.Name) // a0.Name
 
 			if m.Error != nil {
 				// Construct aName elsewhere.
 				methodsWithError = append(methodsWithError, m)
 
 				// Name: aName,
-				dict[Id(t.Name)] = fieldNameID.Clone()
+				dict[Id(t.Name)] = resolver.Var()
 			} else {
 				// Name: a.Name()
-				dict[Id(t.Name)] = fieldSelectionID.Clone().Call()
+				dict[Id(t.Name)] = resolver.Selection()
 			}
 		} else {
 			panic("mapper: method signature not found")
 		}
+
 	}
 
 	returnOnError := If(Id("err").Op("!=").Id("nil").Block(
@@ -355,11 +417,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 			// if err != nil {
 			//	return Bar{}, err
 			// }
-			name := argsWithIndex(from.Name, 0)     // a0
-			nameID := Id(name + fn.In.Name)         // a0Name
-			selectionID := Id(name).Dot(fn.In.Name) // a0.Name
-
-			g.Add(List(nameID, Id("err")).Op(":=").Qual(fn.Fn.PkgPath, fn.Fn.Name).Call(selectionID))
+			g.Add(List(fn.resolver.Var(), Id("err")).Op(":=").Qual(fn.Fn.PkgPath, fn.Fn.Name).Call(fn.resolver.Selection()))
 			g.Add(returnOnError.Clone())
 		}
 	}
@@ -370,12 +428,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 			// if err != nil {
 			//	return Bar{}, err
 			// }
-
-			name := argsWithIndex(from.Name, 0)     // a0
-			nameID := Id(name + fn.In.Name)         // a0Name
-			selectionID := Id(name).Dot(fn.In.Name) // a0.Name()
-
-			g.Add(List(nameID, Id("err")).Op(":=").Id("c").Dot(fn.structName).Dot(fn.Fn.Name).Call(selectionID))
+			g.Add(List(fn.resolver.Var(), Id("err")).Op(":=").Id("c").Dot(fn.structName).Dot(fn.Fn.Name).Call(fn.resolver.Selection()))
 			g.Add(returnOnError.Clone())
 		}
 	}
@@ -383,10 +436,6 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 	gg := g
 	genPrivateMapperMethodsWithError := func(g *Group) {
 		for _, fn := range privateMapperMethodsWithError {
-			name := argsWithIndex(from.Name, 0)     // a0
-			nameID := Id(name + fn.In.Name)         // a0Name
-			selectionID := Id(name).Dot(fn.In.Name) // a0.Name
-
 			// []*B
 			returnType := Do(func(s *Statement) {
 				if fn.In.Type.IsSlice {
@@ -399,7 +448,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 			if fn.In.Type.IsSlice {
 				// aName := make([]B, len(a.Name))
-				g.Add(nameID.Clone().Op(":=").Make(returnType, Len(selectionID.Clone())))
+				g.Add(fn.resolver.Var().Op(":=").Make(returnType, Len(fn.resolver.Selection())))
 
 				if fn.Fn.Error != nil {
 					// for i, each := range a.Name {
@@ -410,9 +459,9 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 					//   }
 					// }
 
-					g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(selectionID.Clone())).Block(
+					g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(fn.resolver.Selection())).Block(
 						Var().Id("err").Id("error"),
-						List(nameID.Clone().Index(Id("i")), Id("err")).Op("=").Id("c").Dot(fn.Fn.NormalizedName()).Call(Id("each")),
+						List(fn.resolver.Var().Index(Id("i")), Id("err")).Op("=").Id("c").Dot(fn.Fn.NormalizedName()).Call(Id("each")),
 						returnOnError.Clone(),
 					))
 
@@ -420,8 +469,8 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 					// for i, each := range a.Name {
 					//   aName[i] := c.mapAtoB(a.Name)
 					// }
-					g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(selectionID.Clone())).Block(
-						nameID.Clone().Index(Id("i")).Op("=").Id("c").Dot(fn.Fn.NormalizedName()).Call(Id("each")),
+					g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(fn.resolver.Selection())).Block(
+						fn.resolver.Var().Index(Id("i")).Op("=").Id("c").Dot(fn.Fn.NormalizedName()).Call(Id("each")),
 					))
 
 				}
@@ -430,7 +479,7 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 				// if err != nil {
 				//	return Bar{}, err
 				// }
-				g.Add(List(nameID.Clone(), Id("err")).Op(":=").Id("c").Dot(fn.Fn.NormalizedName()).Call(selectionID.Clone()))
+				g.Add(List(fn.resolver.Var(), Id("err")).Op(":=").Id("c").Dot(fn.Fn.NormalizedName()).Call(fn.resolver.Selection()))
 				g.Add(returnOnError.Clone())
 			}
 		}

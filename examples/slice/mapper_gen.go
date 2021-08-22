@@ -9,16 +9,6 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (c *MapperImpl) mapMainAToMainB(a0 A) B {
-	return B{
-		Bool:  a0.Bool,
-		ID:    a0.ID,
-		Map:   a0.Map,
-		Slice: a0.Slice,
-		Str:   a0.Str,
-	}
-}
-
 func (c *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	return examples.B{
 		Bool:  a0.Bool,
@@ -29,18 +19,32 @@ func (c *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (c *MapperImpl) AtoB(a0 []A) []B {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		res[i] = c.mapMainAToMainB(each)
+func (c *MapperImpl) mapMainAToMainB(a0 A) B {
+	return B{
+		Bool:  a0.Bool,
+		ID:    a0.ID,
+		Map:   a0.Map,
+		Slice: a0.Slice,
+		Str:   a0.Str,
 	}
-	return res
+}
+
+func (c *MapperImpl) AtoB(a0 A) B {
+	return c.mapMainAToMainB(a0)
 }
 
 func (c *MapperImpl) ExternalAtoB(a0 []examples.A) []examples.B {
 	res := make([]examples.B, len(a0))
 	for i, each := range a0 {
 		res[i] = c.mapExamplesAToExamplesB(each)
+	}
+	return res
+}
+
+func (c *MapperImpl) SliceAtoB(a0 []A) []B {
+	res := make([]B, len(a0))
+	for i, each := range a0 {
+		res[i] = c.mapMainAToMainB(each)
 	}
 	return res
 }
