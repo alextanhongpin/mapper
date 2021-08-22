@@ -9,6 +9,13 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
+func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
+	return User{
+		ID:   u0.ID,
+		Name: u0.Name,
+	}, nil
+}
+
 func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
 	return Book{
 		ID:     b0.ID,
@@ -22,13 +29,6 @@ func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 		Amount:   p0.Amount,
 		Currency: p0.Currency,
 	}
-}
-
-func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
-	return User{
-		ID:   u0.ID,
-		Name: u0.Name,
-	}, nil
 }
 
 func (m *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {

@@ -11,6 +11,7 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 	return B{
 		AnotherID: a0.ID,
 		Name:      a0.MyName,
+		ToB:       a0.FromA,
 	}
 }
 
