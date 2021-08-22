@@ -10,6 +10,8 @@ import (
 type Mapper interface {
 	// Supports error as second return parameter.
 	AtoB(A) (B, error)
+	SliceAtoB([]A) ([]B, error)
+	VariadicAtoB(...A) ([]B, error)
 }
 
 type A struct {

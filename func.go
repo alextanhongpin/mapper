@@ -8,8 +8,17 @@ import (
 )
 
 type FuncArg struct {
-	Name string
-	Type *Type
+	Name     string
+	Type     *Type
+	Variadic bool
+}
+
+func NewFuncArg(name string, T *Type, variadic bool) *FuncArg {
+	return &FuncArg{
+		Name:     name,
+		Type:     T,
+		Variadic: variadic,
+	}
 }
 
 type Func struct {

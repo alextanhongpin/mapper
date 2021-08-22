@@ -10,12 +10,17 @@ import (
 
 // TODO: Add ignore tags.
 var tagRe *regexp.Regexp
+var tagPatternRe *regexp.Regexp
 
 func init() {
 	var err error
-	tagRe, err = regexp.Compile(`map:"(([\w.]+)?,?([\w.\/]+)?)"`)
+	tagRe, err = regexp.Compile(`map:"(.+?)"`)
 	if err != nil {
 		panic(fmt.Sprintf("mapper: compile tag regex error: %s", err))
+	}
+	tagPatternRe, err = regexp.Compile(`map:"(([\w.]+)?,?([\w.\/]+)?)"`)
+	if err != nil {
+		panic(fmt.Sprintf("mapper: compile tag pattern regex error: %s", err))
 	}
 }
 
@@ -24,15 +29,25 @@ func NewTag(tag string) (*Tag, bool) {
 		return nil, false
 	}
 	matches := tagRe.FindAllStringSubmatch(tag, -1)
-	match := matches[0]
+	matched := matches[0][1]
+	if matched == "" {
+		return nil, false
+	}
+	if matched == "-" {
+		return &Tag{Ignore: true}, true
+	}
 
-	matched := match[1]
+	if !tagPatternRe.MatchString(tag) {
+		return nil, false
+	}
+	matches = tagPatternRe.FindAllStringSubmatch(tag, -1)
+	matched = matches[0][1]
 	if matched == "" {
 		return nil, false
 	}
 
-	name := match[2]
-	pkgPath, expr := path.Split(match[3])
+	name := matches[0][2]
+	pkgPath, expr := path.Split(matches[0][3])
 	pkgPath = stripSlash(pkgPath) // Removes trailing slash
 
 	var typeName, fn string
@@ -71,8 +86,9 @@ type Tag struct {
 	// If the `pkg` is not empty, it could most likely be an interface or struct method.
 	TypeName string `example:"YourStruct|YourInterface"`
 	// If `pkg` is empty, then this is a pure function import.
-	Func string `example:"YourMethod"`
-	Tag  string
+	Func   string `example:"YourMethod"`
+	Tag    string
+	Ignore bool
 }
 
 func (t Tag) HasFunc() bool {

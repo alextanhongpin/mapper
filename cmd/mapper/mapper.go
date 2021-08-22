@@ -22,16 +22,18 @@ func main() {
 }
 
 type Generator struct {
-	opt     mapper.Option
-	uses    map[string]mapper.Type
-	mappers map[string]bool
+	opt              mapper.Option
+	uses             map[string]mapper.Type
+	mappers          map[string]bool
+	hasErrorByMapper map[string]bool
 }
 
 func NewGenerator(opt mapper.Option) *Generator {
 	return &Generator{
-		opt:     opt,
-		uses:    make(map[string]mapper.Type),
-		mappers: make(map[string]bool),
+		opt:              opt,
+		uses:             make(map[string]mapper.Type),
+		mappers:          make(map[string]bool),
+		hasErrorByMapper: make(map[string]bool),
 	}
 }
 
@@ -430,7 +432,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		}
 	}
 
-	gg := g
+	this := g
 	genPrivateMapperMethodsWithError := func(g *Group) {
 		for _, fn := range mappersWithError {
 			// []*B
@@ -441,7 +443,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				if fn.In.Type.IsPointer {
 					s.Add(Op("*"))
 				}
-			}).Qual(relativeTo(gg.opt.PkgPath, fn.Fn.To.Type.PkgPath), fn.Fn.To.Type.Type)
+			}).Qual(relativeTo(this.opt.PkgPath, fn.Fn.To.Type.PkgPath), fn.Fn.To.Type.Type)
 
 			if fn.In.Type.IsSlice {
 				// aName := make([]B, len(a.Name))
@@ -508,6 +510,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	if fn.Error == nil && (len(methodsWithError)+len(mappersWithError) > 0) {
 		panic(ErrMissingReturnError(fn))
 	}
+	g.hasErrorByMapper[fn.NormalizedSignature()] = fn.Error != nil
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
@@ -565,8 +568,9 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	//   return b, err
 	// }
 
+	this := g
 	from, to := fn.From, fn.To
-	if from.Type.IsSlice != to.Type.IsSlice {
+	if (from.Variadic || from.Type.IsSlice) != to.Type.IsSlice {
 		panic("mapper: slice to no-slice and vice versa is not allowed")
 	}
 	isSlice := from.Type.IsSlice
@@ -580,11 +584,14 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	genInputType := func(g *Group) {
 		g.Add(
 			Id(argsWithIndex(from.Name, 0)).Do(func(s *Statement) {
-				if from.Type.IsSlice {
+				if !from.Variadic && from.Type.IsSlice {
 					s.Add(Index())
 				}
 				if from.Type.IsPointer {
 					s.Add(Op("*"))
+				}
+				if from.Variadic {
+					s.Add(Op("..."))
 				}
 			}).Add(inType),
 		)
@@ -614,7 +621,6 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 		}
 	}
 
-	this := g
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
 		Id(fn.Name).ParamsFunc(genInputType).          // Convert(a *A)
@@ -623,6 +629,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			genNameID := func() *Statement {
 				return Id(argsWithIndex(from.Name, 0)).Clone()
 			}
+			mapperHasError := this.hasErrorByMapper[fn.NormalizedSignature()]
 			if isSlice {
 				// res := make([]B, len(a))
 				// for i, each := range a {
@@ -633,7 +640,9 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 				// return res, nil
 				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(genNameID()))))
 				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(genNameID())).BlockFunc(func(g *Group) {
-					if fn.Error != nil {
+
+					// If the private method does not have error, exit.
+					if mapperHasError {
 						g.Add(Var().Id("err").Id("error"))
 						g.Add(List(
 							Id("res").Index(Id("i")),
@@ -795,12 +804,8 @@ func (g *Generator) loadTagFunction(tag *mapper.Tag) *mapper.Func {
 
 func buildFnSignature(lhs, rhs *mapper.Type) string {
 	fn := mapper.Func{
-		From: &mapper.FuncArg{
-			Type: lhs,
-		},
-		To: &mapper.FuncArg{
-			Type: rhs,
-		},
+		From: mapper.NewFuncArg("", lhs, false),
+		To:   mapper.NewFuncArg("", rhs, false),
 	}
 	return fn.NormalizedSignature()
 }

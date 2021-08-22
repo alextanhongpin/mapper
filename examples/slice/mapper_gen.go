@@ -48,3 +48,19 @@ func (m *MapperImpl) SliceAtoB(a0 []A) []B {
 	}
 	return res
 }
+
+func (m *MapperImpl) Variadic(a0 ...A) []B {
+	res := make([]B, len(a0))
+	for i, each := range a0 {
+		res[i] = m.mapMainAToMainB(each)
+	}
+	return res
+}
+
+func (m *MapperImpl) VariadicError(a0 ...A) ([]B, error) {
+	res := make([]B, len(a0))
+	for i, each := range a0 {
+		res[i] = m.mapMainAToMainB(each)
+	}
+	return res, nil
+}

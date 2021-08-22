@@ -28,7 +28,7 @@ func ExtractFunc(fn *types.Func) *Func {
 		if name == "" {
 			name = ShortName(typ.Type)
 		}
-		from = &FuncArg{Name: name, Type: typ}
+		from = NewFuncArg(name, typ, sig.Variadic())
 	}
 
 	var err *Type
@@ -40,7 +40,7 @@ func ExtractFunc(fn *types.Func) *Func {
 		if name == "" {
 			name = ShortName(typ.Type)
 		}
-		to = &FuncArg{Name: name, Type: typ}
+		to = NewFuncArg(name, typ, sig.Variadic())
 
 		// Allow errors as second return value.
 		if n > 1 {
@@ -85,6 +85,9 @@ func ExtractStructFields(structType *types.Struct) map[string]StructField {
 		tag, ok := NewTag(structType.Tag(i))
 		if ok && tag.IsAlias() {
 			key = tag.Name
+		}
+		if ok && tag.Ignore {
+			continue
 		}
 
 		fields[key] = StructField{

@@ -1,24 +1,16 @@
 // Code gend by mapper, DO NOT EDIT.
 package main
 
-import examples "github.com/alextanhongpin/mapper/examples"
+type MapperImpl struct{}
 
-type MapperImpl struct {
-	uRLer         URLer
-	examplesURLer examples.URLer
-}
-
-func NewMapperImpl(uRLer URLer, examplesURLer examples.URLer) *MapperImpl {
-	return &MapperImpl{
-		examplesURLer: examplesURLer,
-		uRLer:         uRLer,
-	}
+func NewMapperImpl() *MapperImpl {
+	return &MapperImpl{}
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	return B{
-		ExternalURL: m.examplesURLer.Build(a0.ExternalURL),
-		URL:         m.uRLer.Build(a0.URL),
+		ExternalURL: a0.ExternalURL,
+		URL:         a0.URL,
 	}, nil
 }
 
