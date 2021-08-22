@@ -314,9 +314,34 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					continue
 				}
 
+				g.validatePointerConversion(lhs.Type, rhs.Type)
 				if rhs.Type.IsPointer {
-					dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
-					pointers = append(pointers, List(resolver.Var()).Op(":=").Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name).Call(resolver.Selection()))
+					// customfuncpkg.CustomFunc(a0.Name)
+					callerID := Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name)
+					if lhs.Type.IsPointer {
+						// Output:
+						// var a0Name *outpkg.OutType
+						// if a0.Name != nil {
+						//   res := customfuncpkg.CustomFunc(*a0.Name)
+						//   a0Name = &res
+						// }
+						// a0Name: a0Name
+						pointers = append(pointers,
+							Var().Add(resolver.Var()).Op("*").Qual(relativeTo(g.opt.PkgPath, rhs.Type.PkgPath), rhs.Type.Type),
+							If(resolver.Selection().Op("!=").Id("nil")).Block(
+								Id("res").Op(":=").Add(callerID.Call(Op("*").Add(resolver.Selection()))),
+								resolver.Var().Op("=").Op("&").Id("res"),
+							),
+						)
+						dict[Id(rhs.Name)] = resolver.Var()
+					} else {
+						// Output:
+						// a0Name := customfuncpkg.CustomFunc(a0.Name)
+						pointers = append(pointers, List(resolver.Var()).Op(":=").Add(callerID.Call(resolver.Selection())))
+						// Output:
+						// name: &a0Name
+						dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+					}
 					continue
 				}
 
@@ -378,10 +403,33 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					continue
 				}
 
+				g.validatePointerConversion(lhs.Type, rhs.Type)
 				if rhs.Type.IsPointer {
-					dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
-					pointers = append(pointers,
-						resolver.Var().Op(":=").Add(g.genShortName()).Dot(structPackageName).Dot(method.Name).Call(resolver.Selection()))
+					// c.interfacePkgInterface.CustomMethod
+					callerID := Add(g.genShortName()).Dot(structPackageName).Dot(method.Name)
+					if lhs.Type.IsPointer {
+						// Output:
+						// var a0Name *outpkg.OutType
+						// if a0.Name != nil {
+						//   res := c.interfacePkgInterface.CustomMethod(*a.Name)
+						//   a0Name = &res
+						// }
+						// a0Name: a0Name
+						pointers = append(pointers,
+							Var().Add(resolver.Var()).Op("*").Qual(relativeTo(g.opt.PkgPath, rhs.Type.PkgPath), rhs.Type.Type),
+							If(resolver.Selection().Op("!=").Id("nil")).Block(
+								Id("res").Op(":=").Add(callerID.Call(Op("*").Add(resolver.Selection()))),
+								resolver.Var().Op("=").Op("&").Id("res"),
+							),
+						)
+						dict[Id(rhs.Name)] = resolver.Var()
+					} else {
+						// a0Name := c.interfacePkgInterface.CustomMethod(a.Name)
+						// Name: &a0Name
+						pointers = append(pointers,
+							resolver.Var().Op(":=").Add(callerID.Call(resolver.Selection())))
+						dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+					}
 					continue
 
 				}
@@ -415,12 +463,35 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 						callerID: g.genShortName().Dot(method.NormalizedName()),
 					})
 				} else {
-
+					g.validatePointerConversion(lhs.Type, rhs.Type)
 					if rhs.Type.IsPointer {
-						dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
-						pointers = append(pointers,
-							resolver.Var().Op(":=").Add(g.genShortName()).Dot(method.NormalizedName()).Call(resolver.Selection()),
-						)
+						// c.mapAtoB(a.Name)
+						callerID := g.genShortName().Dot(method.NormalizedName())
+						if lhs.Type.IsPointer {
+							// Output:
+							// var a0Name *outpkg.OutType
+							// if a0.Name != nil {
+							//   res := c.mapAtoB(a.Name)
+							//   a0Name = &res
+							// }
+							// a0Name: a0Name
+							pointers = append(pointers,
+								Var().Add(resolver.Var()).Op("*").Qual(relativeTo(g.opt.PkgPath, rhs.Type.PkgPath), rhs.Type.Type),
+								If(resolver.Selection().Op("!=").Id("nil")).Block(
+									Id("res").Op(":=").Add(callerID.Call(Op("*").Add(resolver.Selection()))),
+									resolver.Var().Op("=").Op("&").Id("res"),
+								),
+							)
+							dict[Id(rhs.Name)] = resolver.Var()
+						} else {
+							// OutpuT;
+							// a0Name := &c.mapAtoB(a.Name)
+							// Name: &a0Name
+							dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+							pointers = append(pointers,
+								resolver.Var().Op(":=").Add(callerID.Call(resolver.Selection())),
+							)
+						}
 					} else {
 						// Name: c.mapAtoB(a.Name)
 						dict[Id(rhs.Name)] = g.genShortName().Dot(method.NormalizedName()).Call(resolver.Selection())
@@ -833,6 +904,15 @@ func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, in, out *map
 		if fn.To.Type.Type != out.Type {
 			panic(ErrMismatchType(fn.To.Type, out))
 		}
+	}
+}
+
+func (g *Generator) validatePointerConversion(lhs, rhs *mapper.Type) {
+	if lhs.IsPointer && !rhs.IsPointer {
+		panic(fmt.Sprintf("mapper: conversion of value %s to pointer %s not allowed",
+			lhs.Signature(),
+			rhs.Signature(),
+		))
 	}
 }
 

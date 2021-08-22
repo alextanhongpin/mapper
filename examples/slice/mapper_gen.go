@@ -29,10 +29,6 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) B {
-	return m.mapMainAToMainB(a0)
-}
-
 func (m *MapperImpl) ExternalAtoB(a0 []examples.A) []examples.B {
 	res := make([]examples.B, len(a0))
 	for i, each := range a0 {
@@ -63,4 +59,8 @@ func (m *MapperImpl) VariadicError(a0 ...A) ([]B, error) {
 		res[i] = m.mapMainAToMainB(each)
 	}
 	return res, nil
+}
+
+func (m *MapperImpl) AtoB(a0 A) B {
+	return m.mapMainAToMainB(a0)
 }

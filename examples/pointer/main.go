@@ -7,6 +7,7 @@ type Mapper interface {
 	AtoB(A) *B
 	ExternalAtoB(examples.A) *examples.B
 	CtoD(C) D
+	CtoDPointer(C) *D
 }
 
 type A struct {

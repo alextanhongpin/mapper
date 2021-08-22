@@ -4,11 +4,11 @@ package main
 import examples "github.com/alextanhongpin/mapper/examples"
 
 type MapperImpl struct {
-	examplesURLBuilder *examples.URLBuilder
 	uRLBuilder         *URLBuilder
+	examplesURLBuilder *examples.URLBuilder
 }
 
-func NewMapperImpl(examplesURLBuilder *examples.URLBuilder, uRLBuilder *URLBuilder) *MapperImpl {
+func NewMapperImpl(uRLBuilder *URLBuilder, examplesURLBuilder *examples.URLBuilder) *MapperImpl {
 	return &MapperImpl{
 		examplesURLBuilder: examplesURLBuilder,
 		uRLBuilder:         uRLBuilder,
