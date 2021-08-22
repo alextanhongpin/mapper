@@ -245,13 +245,15 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		pkgPath  = g.opt.PkgPath
 		typeName = g.opt.TypeName
 		fnName   = fn.NormalizedName()
+		from     = fn.From
+		to       = fn.To
+		this     = g
 	)
-	from, to := fn.From, fn.To
 
 	var methodsWithError []FieldResolver
 	var mappersWithError []mapperFunc
-
 	var resolvers []FieldResolver
+
 	for key, to := range to.Type.StructFields {
 		// Check if there is a field mapping.
 		field, ok := from.Type.StructFields[key]
@@ -432,7 +434,6 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		}
 	}
 
-	this := g
 	genPrivateMapperMethodsWithError := func(g *Group) {
 		for _, fn := range mappersWithError {
 			// []*B

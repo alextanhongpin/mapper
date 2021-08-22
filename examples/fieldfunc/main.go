@@ -12,6 +12,11 @@ type Mapper interface {
 	AtoB(A) (B, error)
 	SliceAtoB([]A) ([]B, error)
 	VariadicAtoB(...A) ([]B, error)
+
+	// No errors.
+	CtoD(C) D
+	SliceCtoD([]C) []D
+	VariadicCtoD(...C) []D
 }
 
 type A struct {
@@ -39,6 +44,14 @@ type B struct {
 	ExternalID string
 	Nums       []int
 	UUID       uuid.UUID
+}
+
+type C struct {
+	ID int `map:",IntToString"`
+}
+
+type D struct {
+	ID string
 }
 
 // IntToString that resides locally.
