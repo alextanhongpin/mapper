@@ -9,6 +9,22 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
+func (c *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
+	return Book{
+		ID:     b0.ID,
+		Price:  c.mapExamplesPriceToMainPrice(b0.Price),
+		Title:  b0.Title,
+		UserID: b0.UserID,
+	}, nil
+}
+
+func (c *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
+	return Price{
+		Amount:   p0.Amount,
+		Currency: p0.Currency,
+	}
+}
+
 func (c *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
 	u0Books := make([]Book, len(u0.Books))
 	for i, each := range u0.Books {
@@ -26,20 +42,8 @@ func (c *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
 	}, nil
 }
 
-func (c *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
-	return Book{
-		ID:     b0.ID,
-		Price:  c.mapExamplesPriceToMainPrice(b0.Price),
-		Title:  b0.Title,
-		UserID: b0.UserID,
-	}, nil
-}
-
-func (c *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
-	return Price{
-		Amount:   p0.Amount,
-		Currency: p0.Currency,
-	}
+func (c *MapperImpl) ConvertUser(u0 examples.User) (User, error) {
+	return c.mapExamplesUserToMainUser(u0)
 }
 
 func (c *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
@@ -48,8 +52,4 @@ func (c *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
 
 func (c *MapperImpl) ConvertPrice(p0 examples.Price) Price {
 	return c.mapExamplesPriceToMainPrice(p0)
-}
-
-func (c *MapperImpl) ConvertUser(u0 examples.User) (User, error) {
-	return c.mapExamplesUserToMainUser(u0)
 }

@@ -47,12 +47,19 @@ func NewTag(tag string) (*Tag, bool) {
 		panic(fmt.Sprintf(`mapper: invalid tag %q`, tag))
 	}
 
+	// If base is empty, filepath returns '.'.
+	pkg := filepath.Base(pkgPath)
+	if pkg == "." {
+		pkg = ""
+	}
+
 	return &Tag{
 		Name:     name,
 		PkgPath:  pkgPath,
-		Pkg:      filepath.Base(pkgPath),
+		Pkg:      pkg,
 		TypeName: typeName,
 		Func:     fn,
+		Tag:      tag,
 	}, true
 }
 
@@ -65,6 +72,7 @@ type Tag struct {
 	TypeName string `example:"YourStruct|YourInterface"`
 	// If `pkg` is empty, then this is a pure function import.
 	Func string `example:"YourMethod"`
+	Tag  string
 }
 
 func (t Tag) HasFunc() bool {
