@@ -436,9 +436,9 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 	genReturnType := func(s *Statement) {
 		returnType := Do(func(s *Statement) {
-			if to.Type.IsSlice {
-				s.Add(Index())
-			}
+			//if to.Type.IsSlice {
+			//s.Add(Index())
+			//}
 			if to.Type.IsPointer {
 				s.Add(Op("*"))
 			}
@@ -589,7 +589,7 @@ func (g *Generator) generatePublicMethod(f *jen.File, fn mapper.Func) {
 					g.Add(Var().Id("err").Id("error"))
 				}
 				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(Id(argsWithIndex(from.Name, 0))))))
-				g.Add(For(List(Id("i"), Id("s")).Op(":=").Range().Id(argsWithIndex(from.Name, 0))).BlockFunc(func(g *Group) {
+				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Id(argsWithIndex(from.Name, 0))).BlockFunc(func(g *Group) {
 					if fn.Error != nil {
 						g.Add(List(
 							Id("res").Index(Id("i")),
