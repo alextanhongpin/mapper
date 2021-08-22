@@ -13,16 +13,11 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
-	a0Nums := make([]int, len(a0.Nums))
-	for i, each := range a0.Nums {
-		var err error
-		a0Nums[i], err = strconv.Atoi(each)
-		if err != nil {
-			return B{}, err
-		}
-	}
+func (m *MapperImpl) mapMainCToMainD(c0 C) D {
+	return D{ID: IntToString(c0.ID)}
+}
 
+func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	a0UUID, err := uuid.Parse(a0.UUID)
 	if err != nil {
 		return B{}, err
@@ -37,6 +32,15 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		}
 	}
 
+	a0Nums := make([]int, len(a0.Nums))
+	for i, each := range a0.Nums {
+		var err error
+		a0Nums[i], err = strconv.Atoi(each)
+		if err != nil {
+			return B{}, err
+		}
+	}
+
 	return B{
 		ExternalID: examples.IntToString(a0.ExternalID),
 		ID:         IntToString(a0.ID),
@@ -46,8 +50,24 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	}, nil
 }
 
-func (m *MapperImpl) mapMainCToMainD(c0 C) D {
-	return D{ID: IntToString(c0.ID)}
+func (m *MapperImpl) SliceCtoD(c0 []C) []D {
+	res := make([]D, len(c0))
+	for i, each := range c0 {
+		res[i] = m.mapMainCToMainD(each)
+	}
+	return res
+}
+
+func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
+	res := make([]B, len(a0))
+	for i, each := range a0 {
+		var err error
+		res[i], err = m.mapMainAToMainB(each)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (m *MapperImpl) VariadicCtoD(c0 ...C) []D {
@@ -67,26 +87,6 @@ func (m *MapperImpl) CtoD(c0 C) D {
 }
 
 func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		var err error
-		res[i], err = m.mapMainAToMainB(each)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (m *MapperImpl) SliceCtoD(c0 []C) []D {
-	res := make([]D, len(c0))
-	for i, each := range c0 {
-		res[i] = m.mapMainCToMainD(each)
-	}
-	return res
-}
-
-func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
 	res := make([]B, len(a0))
 	for i, each := range a0 {
 		var err error

@@ -253,6 +253,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	var methodsWithError []FieldResolver
 	var mappersWithError []mapperFunc
 	var resolvers []FieldResolver
+	var pointers []*Statement
 
 	for key, to := range to.Type.StructFields {
 		// Check if there is a field mapping.
@@ -313,8 +314,15 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					continue
 				}
 
+				if rhs.Type.IsPointer {
+					dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+					pointers = append(pointers, List(resolver.Var()).Op(":=").Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name).Call(resolver.Selection()))
+					continue
+				}
+
 				// name: customfuncpkg.CustomFunc(a.Name)
 				dict[Id(rhs.Name)] = Qual(relativeTo(g.opt.PkgPath, fn.PkgPath), fn.Name).Call(resolver.Selection())
+				continue
 			}
 
 			if tag.IsMethod() {
@@ -370,10 +378,17 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					continue
 				}
 
+				if rhs.Type.IsPointer {
+					dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+					pointers = append(pointers,
+						resolver.Var().Op(":=").Add(g.genShortName()).Dot(structPackageName).Dot(method.Name).Call(resolver.Selection()))
+					continue
+
+				}
 				// Name: c.interfacePkgInterface.CustomMethod(a.Name)
 				dict[Id(rhs.Name)] = g.genShortName().Dot(structPackageName).Dot(method.Name).Call(resolver.Selection())
+				continue
 			}
-			continue
 		} // End of custom tag function.
 
 		if !lhs.Type.Equal(rhs.Type) {
@@ -383,8 +398,12 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				panic(ErrConversion(lhs.Type, rhs.Type))
 			}
 
+			var found bool
 			// Implement conversion for that field using existing converters.
-			if method, exists := g.opt.Type.InterfaceMethods[methodSignature]; exists {
+			for _, method := range g.opt.Type.InterfaceMethods {
+				if method.NormalizedSignature() != methodSignature {
+					continue
+				}
 				if method.Error != nil || rhs.Type.IsSlice {
 					// Name: a0Name,
 					dict[Id(rhs.Name)] = resolver.Var()
@@ -396,10 +415,23 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 						callerID: g.genShortName().Dot(method.NormalizedName()),
 					})
 				} else {
-					// Name: c.mapAtoB(a.Name)
-					dict[Id(rhs.Name)] = g.genShortName().Dot(method.NormalizedName()).Call(resolver.Selection())
+
+					if rhs.Type.IsPointer {
+						dict[Id(rhs.Name)] = Op("&").Add(resolver.Var())
+						pointers = append(pointers,
+							resolver.Var().Op(":=").Add(g.genShortName()).Dot(method.NormalizedName()).Call(resolver.Selection()),
+						)
+					} else {
+						// Name: c.mapAtoB(a.Name)
+						dict[Id(rhs.Name)] = g.genShortName().Dot(method.NormalizedName()).Call(resolver.Selection())
+					}
 				}
+				found = true
 				break
+			}
+
+			if !found {
+				panic(fmt.Sprintf("mapper: no signature found %s", methodSignature))
 			}
 			continue
 		}
@@ -414,7 +446,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		return If(Id("err").Op("!=").Id("nil").Block(
 			Return(
 				List(
-					Op(pointerOp(to.Type, "&")).Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(Dict{}),
+					Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(Dict{}),
 					Id("err"),
 				),
 			)),
@@ -490,9 +522,6 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 	genReturnType := func(s *Statement) {
 		returnType := Do(func(s *Statement) {
-			if to.Type.IsPointer {
-				s.Add(Op("*"))
-			}
 		}).Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type)
 		if fn.Error != nil {
 			// (Bar, nil)
@@ -526,6 +555,9 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// if err != nil {
 			//	return Bar{}, err
 			// }
+			for _, pointer := range pointers {
+				g.Add(pointer)
+			}
 			genMethodsWithError(g)
 
 			// Output:
@@ -539,19 +571,19 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 			g.Add(ReturnFunc(func(g *Group) {
 				if fn.Error != nil {
+					// Output:
 					// return Bar{}, nil
 					g.Add(
 						List(
-							Op(pointerOp(to.Type, "&")).
-								Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(dict),
+							Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(dict),
 							Id("nil"),
 						),
 					)
 				} else {
+					// Output:
 					// return Bar{}
 					g.Add(
-						Op(pointerOp(to.Type, "&")).
-							Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(dict))
+						Qual(relativeTo(pkgPath, to.Type.PkgPath), to.Type.Type).Values(dict))
 				}
 			}))
 		}).Line()
@@ -565,8 +597,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	)
 	// Output:
 	// func (c *Converter) Convert(a A) (B, error) {
-	//   b, err := c.mapMainAtoMainB(a.Field)
-	//   return b, err
+	//   return c.mapMainAtoMainB(a.Field)
 	// }
 
 	this := g
@@ -611,7 +642,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			if to.Type.IsPointer {
 				rs.Add(Op("*"))
 			}
-		}).Op(pointerOp(to.Type, "*")).Add(outType)
+		}).Add(outType)
 
 		if fn.Error != nil {
 			// (*Bar, error)
@@ -620,6 +651,16 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			// (*Bar)
 			s.Add(returnType)
 		}
+	}
+
+	genReturnOnError := func() *Statement {
+		return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
+			if isSlice || to.Type.IsPointer {
+				g.Add(List(Id("nil"), Id("err")))
+			} else {
+				g.Add(List(outType.Clone().Values(), Id("err")))
+			}
+		})).Clone()
 	}
 
 	f.Func().
@@ -649,28 +690,41 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 							Id("res").Index(Id("i")),
 							Id("err"),
 						).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
-						g.Add(If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
-							if isSlice {
-								g.Add(List(Id("nil"), Id("err")))
-							} else {
-								g.Add(List(outType.Clone().Values(), Id("err")))
-							}
-						})))
+						g.Add(genReturnOnError())
 					} else {
 						g.Add(Id("res").Index(Id("i")).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
 					}
 				}))
 
 				if fn.Error != nil {
-					// return res, nil
-					g.Add(Return(List(Id("res"), Id("nil"))))
+					// return &res, nil
+					g.Add(Return(List(Op(pointerOp(to.Type, "&")).Id("res"), Id("nil"))))
 				} else {
-					// return res
-					g.Add(Return(Id("res")))
+					// return &res
+					g.Add(Return(Op(pointerOp(to.Type, "&")).Id("res")))
 				}
 			} else {
-				// return c.mapMainAToMainB(a)
-				g.Add(Return(this.genShortName().Dot(fn.NormalizedName()).Call(genNameID())))
+				if to.Type.IsPointer {
+					if fn.Error != nil {
+						// Output:
+						// res, err := c.mapMainAToMainB(a)
+						// if err != nil {
+						//   return nil, err
+						// }
+						// return c.mapMainAToMainB(a)
+						g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID()))
+						g.Add(genReturnOnError())
+						g.Add(Return(List(Op("&").Id("res")), Id("nil")))
+					} else {
+						// Output:
+						// res := c.mapMainAToMainB(a)
+						// return &res
+						g.Add(Id("res").Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID()))
+						g.Add(Return(Op("&").Id("res")))
+					}
+				} else {
+					g.Add(Return(Op(pointerOp(to.Type, "&")).Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID())))
+				}
 			}
 		}).Line()
 }
@@ -734,9 +788,9 @@ func (g *Generator) validateFieldMapping(lhs, rhs *mapper.Type) {
 			panic("mapper: cannot convert from struct to slice")
 		}
 	}
-	if lhs.IsPointer || rhs.IsPointer {
-		panic("mapper: struct pointer is not allowed")
-	}
+	//if lhs.IsPointer || rhs.IsPointer {
+	//panic("mapper: struct pointer is not allowed")
+	//}
 }
 
 func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {

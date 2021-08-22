@@ -10,13 +10,19 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+	a0Ptr := m.mapMainCToMainD(a0.Ptr)
 	return B{
 		Bool:  a0.Bool,
 		ID:    a0.ID,
 		Map:   a0.Map,
+		Ptr:   &a0Ptr,
 		Slice: a0.Slice,
 		Str:   a0.Str,
 	}
+}
+
+func (m *MapperImpl) mapMainCToMainD(c0 C) D {
+	return D{Name: c0.Name}
 }
 
 func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
@@ -29,10 +35,16 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) B {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) CtoD(c0 C) D {
+	return m.mapMainCToMainD(c0)
 }
 
-func (m *MapperImpl) ExternalAtoB(a0 examples.A) examples.B {
-	return m.mapExamplesAToExamplesB(a0)
+func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
+	res := m.mapExamplesAToExamplesB(a0)
+	return &res
+}
+
+func (m *MapperImpl) AtoB(a0 A) *B {
+	res := m.mapMainAToMainB(a0)
+	return &res
 }

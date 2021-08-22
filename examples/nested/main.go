@@ -9,7 +9,7 @@ type Mapper interface {
 	// Supports error as second return parameter.
 	ConvertUser(examples.User) (User, error) // Fails when no error is set
 	ConvertBook(examples.Book) (Book, error)
-	ConvertPrice(examples.Price) Price
+	ConvertPrice(examples.Price) *Price
 }
 
 type User struct {
@@ -22,7 +22,7 @@ type Book struct {
 	ID     int
 	UserID int
 	Title  string
-	Price  Price
+	Price  *Price
 }
 
 type Price struct {
