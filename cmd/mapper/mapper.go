@@ -174,7 +174,6 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 
 			// `map:"CustomField,CustomFunc"`
 			if tag := f.Tag; tag != nil && tag.HasFunc() {
-
 				if tag.IsFunc() {
 					fieldPkgPath := pkgPath
 					if tag.IsImported() {
@@ -244,6 +243,9 @@ func (g *Generator) generatePrivateMethod(f *jen.Statement, fn mapper.Func) *jen
 					// To avoid different packages having same struct name, prefix the
 					// struct name with the package name.
 					structPackageName := tag.Pkg + tag.TypeName
+					if tag.Pkg == "" {
+						structPackageName = mapper.LowerFirst(structPackageName)
+					}
 					g.uses[structPackageName] = *typ
 
 					if method.Error != nil {

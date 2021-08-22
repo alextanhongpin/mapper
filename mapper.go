@@ -12,6 +12,7 @@ import (
 type Option struct {
 	In       string // The input path, with the file name, e.g. yourpath/yourfile.go
 	Out      string // The output path, with the mapper name, e.g. yourpath/yourfile_gen.go
+	Pkg      *types.Package
 	PkgName  string // The pkgName
 	PkgPath  string // The pkgPath
 	TypeName string // The typeName
@@ -59,6 +60,7 @@ func New(fn Generator) error {
 		}
 
 		if err := fn(Option{
+			Pkg:      obj.Pkg(),
 			PkgName:  pkg.Name,
 			PkgPath:  pkg.PkgPath,
 			Out:      out,

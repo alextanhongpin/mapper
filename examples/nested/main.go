@@ -15,14 +15,14 @@ type Mapper interface {
 type User struct {
 	ID    int
 	Name  string
-	Books []Book `map:",Mapper.ConvertBook"`
+	Books []Book
 }
 
 type Book struct {
 	ID     int
 	UserID int
 	Title  string
-	Price  Price `map:",Mapper.ConvertPrice"`
+	Price  Price
 }
 
 type Price struct {

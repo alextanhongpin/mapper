@@ -4,21 +4,21 @@ package main
 import examples "github.com/alextanhongpin/mapper/examples"
 
 type MapperImpl struct {
-	URLer         URLer
+	uRLer         URLer
 	examplesURLer examples.URLer
 }
 
-func NewMapperImpl(URLer URLer, examplesURLer examples.URLer) *MapperImpl {
+func NewMapperImpl(uRLer URLer, examplesURLer examples.URLer) *MapperImpl {
 	return &MapperImpl{
-		URLer:         URLer,
 		examplesURLer: examplesURLer,
+		uRLer:         uRLer,
 	}
 }
 
 func (c *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	return B{
 		ExternalURL: c.examplesURLer.Build(a0.ExternalURL),
-		URL:         c.URLer.Build(a0.URL),
+		URL:         c.uRLer.Build(a0.URL),
 	}, nil
 }
 

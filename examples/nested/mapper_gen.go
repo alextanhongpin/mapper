@@ -42,14 +42,14 @@ func (c *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
 	}, nil
 }
 
-func (c *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
-	return c.mapExamplesBookToMainBook(b0)
-}
-
 func (c *MapperImpl) ConvertPrice(p0 examples.Price) Price {
 	return c.mapExamplesPriceToMainPrice(p0)
 }
 
 func (c *MapperImpl) ConvertUser(u0 examples.User) (User, error) {
 	return c.mapExamplesUserToMainUser(u0)
+}
+
+func (c *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
+	return c.mapExamplesBookToMainBook(b0)
 }
