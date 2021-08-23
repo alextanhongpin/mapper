@@ -289,12 +289,14 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	dict := make(Dict)
 	for _, resolver := range resolvers {
 		var (
-			rhs   = resolver.Rhs().Type
-			bName = resolver.Rhs().Name
+			rhs = resolver.Rhs().Type
 			// Argument name has a `0` to indicate it's position, which is useful to
 			// avoid conflict in naming.
 			a0Name      = resolver.Var
 			a0Selection = resolver.Selection
+
+			// The return type field name.
+			bName = resolver.Rhs().Name
 		)
 
 		// Resolves method. Note that tag function transformation does not apply to
@@ -932,16 +934,25 @@ func (g *Generator) validateMethodSignature(lhs mapper.Func, rhs mapper.StructFi
 	}
 }
 
-func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, in, out *mapper.Type) {
-	if !fn.From.Type.Equal(in) {
-		if fn.From.Type.Type != in.Type {
-			panic(ErrMismatchType(fn.From.Type, in))
+func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
+	var (
+		in  = fn.From.Type
+		out = fn.To.Type
+	)
+	// Slice A might not equal A
+	// []A != A
+	if !in.Equal(lhs) {
+		// But internally, the type matches. This is allowed because we may have a
+		// private mapper that maps A.
+		// A == A
+		if in.Type != lhs.Type {
+			panic(ErrMismatchType(in, lhs))
 		}
 	}
 
-	if !fn.To.Type.Equal(out) {
-		if fn.To.Type.Type != out.Type {
-			panic(ErrMismatchType(fn.To.Type, out))
+	if !out.Equal(rhs) {
+		if out.Type != rhs.Type {
+			panic(ErrMismatchType(out, rhs))
 		}
 	}
 }
