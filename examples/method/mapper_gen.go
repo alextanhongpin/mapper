@@ -9,15 +9,6 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainCToMainD(c0 C) (D, error) {
-	c0ID, err := c0.ID()
-	if err != nil {
-		return D{}, err
-	}
-
-	return D{ID: c0ID}, nil
-}
-
 func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	return examples.B{
 		Bool:  a0.Bool,
@@ -36,6 +27,15 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 		Slice: a0.Slice(),
 		Str:   a0.Str(),
 	}
+}
+
+func (m *MapperImpl) mapMainCToMainD(c0 C) (D, error) {
+	c0ID, err := c0.ID()
+	if err != nil {
+		return D{}, err
+	}
+
+	return D{ID: c0ID}, nil
 }
 
 func (m *MapperImpl) AtoB(a0 A) B {

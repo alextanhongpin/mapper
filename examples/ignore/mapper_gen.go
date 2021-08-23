@@ -9,10 +9,6 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	return B{ID: a0.ID}
-}
-
 func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	return examples.B{
 		Bool:  a0.Bool,
@@ -21,6 +17,10 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 		Slice: a0.Slice,
 		Str:   a0.Str,
 	}
+}
+
+func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+	return B{ID: a0.ID}
 }
 
 func (m *MapperImpl) AtoB(a0 A) B {
