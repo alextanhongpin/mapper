@@ -260,7 +260,6 @@ func (m mapperFunc) CallerID() *Statement {
 // without pointers, slice etc.
 func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Statement {
 	var (
-		pkgPath  = g.opt.PkgPath
 		typeName = g.opt.TypeName
 		fnName   = fn.NormalizedName()
 		from     = fn.From
@@ -362,7 +361,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
-				fn := g.loadTagFunction(tag)
+				fn := g.loadTagFunction(left)
 				g.validateFunctionSignatureMatch(fn, lhs, rhs)
 
 				// If the TransformationFunc returns error, it needs to be handled and
@@ -429,7 +428,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 			// The tag loads a custom struct or interface method.
 			if tag.IsMethod() {
-				fieldPkgPath := pkgPath
+				fieldPkgPath := left.PkgPath
 				if tag.IsImported() {
 					fieldPkgPath = tag.PkgPath
 				}
@@ -1017,8 +1016,11 @@ func (g *Generator) validatePointerConversion(lhs, rhs *mapper.Type) {
 	}
 }
 
-func (g *Generator) loadTagFunction(tag *mapper.Tag) *mapper.Func {
-	fieldPkgPath := g.opt.PkgPath
+func (g *Generator) loadTagFunction(field *mapper.StructField) *mapper.Func {
+	tag := field.Tag
+	// Use the field pkg path from where the left function
+	// reside. It may be on different files.
+	fieldPkgPath := field.PkgPath
 	if tag.IsImported() {
 		fieldPkgPath = tag.PkgPath
 	}

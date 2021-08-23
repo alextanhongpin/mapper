@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	examples "github.com/alextanhongpin/mapper/examples"
 	"github.com/google/uuid"
 )
 
@@ -19,6 +20,9 @@ type Mapper interface {
 	CtoD(C) D
 	SliceCtoD([]C) []D
 	VariadicCtoD(...C) []D
+
+	ConvertImportedFunc(examples.CustomField) (CustomField, error)
+	ConvertImportedFuncPointer(examples.CustomField) (*CustomField, error)
 }
 
 type A struct {
@@ -60,6 +64,10 @@ type C struct {
 
 type D struct {
 	ID string
+}
+
+type CustomField struct {
+	Num int
 }
 
 // IntToString that resides locally.

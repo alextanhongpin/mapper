@@ -54,12 +54,33 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	}, nil
 }
 
+func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomField) (CustomField, error) {
+	c0Num, err := examples.StringToInt(c0.Num)
+	if err != nil {
+		return CustomField{}, err
+	}
+
+	return CustomField{Num: c0Num}, nil
+}
+
 func (m *MapperImpl) mapMainCToMainD(c0 C) D {
 	return D{ID: IntToString(c0.ID)}
 }
 
 func (m *MapperImpl) AtoB(a0 A) (B, error) {
 	return m.mapMainAToMainB(a0)
+}
+
+func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, error) {
+	return m.mapExamplesCustomFieldToMainCustomField(c0)
+}
+
+func (m *MapperImpl) ConvertImportedFuncPointer(c0 examples.CustomField) (*CustomField, error) {
+	res, err := m.mapExamplesCustomFieldToMainCustomField(c0)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 func (m *MapperImpl) CtoD(c0 C) D {
