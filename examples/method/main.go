@@ -1,11 +1,16 @@
 package main
 
-import examples "github.com/alextanhongpin/mapper/examples"
+import (
+	"strconv"
+
+	examples "github.com/alextanhongpin/mapper/examples"
+)
 
 //go:generate go run github.com/alextanhongpin/mapper/cmd/mapper -type Mapper
 type Mapper interface {
 	AtoB(A) B
 	ExternalAtoB(examples.A) examples.B
+	CtoD(C) (D, error)
 }
 
 // Automatically maps methods. However, tags does not work if you use methods.
@@ -29,4 +34,16 @@ type B struct {
 	Bool  bool
 	Slice []string
 	Map   map[string]int
+}
+
+type C struct {
+	id string
+}
+
+func (c C) ID() (int, error) {
+	return strconv.Atoi(c.id)
+}
+
+type D struct {
+	ID int
 }
