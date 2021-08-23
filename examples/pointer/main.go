@@ -11,27 +11,31 @@ type Mapper interface {
 }
 
 type A struct {
-	ID    int
-	Str   string
-	Bool  bool
-	Slice []string
-	Map   map[string]int
-	Ptr   *C
+	ID              int
+	Str             string
+	Bool            bool
+	Slice           []string
+	Map             map[string]int
+	Ptr             *C
+	NonPtrToPointer C
 }
 
 type B struct {
-	ID    int
-	Str   string
-	Bool  bool
-	Slice []string
-	Map   map[string]int
-	Ptr   *D
+	ID              int
+	Str             string
+	Bool            bool
+	Slice           []string
+	Map             map[string]int
+	Ptr             *D
+	NonPtrToPointer *D
 }
 
 type C struct {
 	Name string
+	Age  int
 }
 
 type D struct {
 	Name string
+	Age  *int
 }

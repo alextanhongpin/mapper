@@ -10,23 +10,28 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
 	var a0Ptr *D
 	if a0.Ptr != nil {
 		res := m.mapMainCToMainD(*a0.Ptr)
 		a0Ptr = &res
 	}
 	return B{
-		Bool:  a0.Bool,
-		ID:    a0.ID,
-		Map:   a0.Map,
-		Ptr:   a0Ptr,
-		Slice: a0.Slice,
-		Str:   a0.Str,
+		Bool:            a0.Bool,
+		ID:              a0.ID,
+		Map:             a0.Map,
+		NonPtrToPointer: &a0NonPtrToPointer,
+		Ptr:             a0Ptr,
+		Slice:           a0.Slice,
+		Str:             a0.Str,
 	}
 }
 
 func (m *MapperImpl) mapMainCToMainD(c0 C) D {
-	return D{Name: c0.Name}
+	return D{
+		Age:  &c0.Age,
+		Name: c0.Name,
+	}
 }
 
 func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {

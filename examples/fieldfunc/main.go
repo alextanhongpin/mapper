@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -36,14 +38,20 @@ type A struct {
 	// Another example of external function, which returns error as second return
 	// parameter.
 	UUID string `map:",github.com/google/uuid/Parse"`
+
+	Remarks      sql.NullString `map:",NullStringToPointer"`
+	RemarksError sql.NullString `map:",NullStringToPointerError"`
+	PtrString    *string        `map:",PointerStringToNullString"`
 }
 
 type B struct {
-	ID         string
-	IDs        []uuid.UUID
-	ExternalID string
-	Nums       []int
-	UUID       uuid.UUID
+	ID           string
+	IDs          []uuid.UUID
+	ExternalID   string
+	Nums         []int
+	UUID         uuid.UUID
+	Remarks      *string
+	RemarksError *string
 }
 
 type C struct {
@@ -57,4 +65,28 @@ type D struct {
 // IntToString that resides locally.
 func IntToString(i int) string {
 	return fmt.Sprint(i)
+}
+
+func NullStringToPointer(str sql.NullString) *string {
+	if str.Valid {
+		return &str.String
+	}
+	return nil
+}
+
+func NullStringToPointerError(str sql.NullString) (*string, error) {
+	if str.Valid {
+		return &str.String, nil
+	}
+	return nil, errors.New("not found")
+}
+
+func PointerStringToNullString(in *string) sql.NullString {
+	if in == nil || *in == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		Valid:  true,
+		String: *in,
+	}
 }

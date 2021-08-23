@@ -412,7 +412,12 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 						// Output:
 						// Name: &a0Name
-						dict[Id(bName)] = Op("&").Add(a0Name())
+						dict[Id(bName)] = Do(func(s *Statement) {
+							// If the output of the function is not a pointer.
+							if !fn.To.Type.IsPointer {
+								s.Add(Op("&"))
+							}
+						}).Add(a0Name())
 					}
 					continue
 				}
@@ -499,7 +504,14 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 						// a0Name := c.interfacePkgInterface.CustomMethod(a.Name)
 						// Name: &a0Name
 						pointers.Add(a0Name().Op(":=").Add(callerID.Call(a0Selection())))
-						dict[Id(bName)] = Op("&").Add(a0Name())
+						dict[Id(bName)] = Do(func(s *Statement) {
+							// Only add pointer return type if the method is not returning
+							// pointer already.
+							if !method.To.Type.IsPointer {
+								s.Add(Op("&"))
+							}
+
+						}).Add(a0Name())
 					}
 					continue
 
@@ -514,6 +526,12 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		// This could be a struct to struct conversion that requires another
 		// internally implemented mapper.
 		if !lhs.Equal(rhs) {
+			// But the same type exists, could be a value to pointer conversion.
+			// PkgPath matters.
+			if (lhs.Type == rhs.Type) && (lhs.PkgPath == rhs.PkgPath) && (!lhs.IsPointer && rhs.IsPointer) {
+				dict[Id(bName)] = Op("&").Add(a0Selection())
+				continue
+			}
 			// Check if there is a private mapper with the signature that accepts LHS
 			// and returns RHS .
 			methodSignature := buildFnSignature(lhs, rhs)
@@ -940,6 +958,12 @@ func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
 		}
 		// There could also be a tag function.
 		if lhs.Tag != nil {
+			return
+		}
+		// There could also be a value to pointer conversion.
+		// Only applies for the same type, e.g. string to *string.
+		// For structs, they may belong to different package.
+		if (lhs.Type.Type == rhs.Type.Type) && (lhs.Type.PkgPath == rhs.Type.PkgPath) && (!lhs.IsPointer && rhs.IsPointer) {
 			return
 		}
 

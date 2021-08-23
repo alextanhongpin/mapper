@@ -14,6 +14,7 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
+	a0Remarks := NullStringToPointer(a0.Remarks)
 	a0IDs := make([]uuid.UUID, len(a0.IDs))
 	for i, each := range a0.IDs {
 		var err error
@@ -32,17 +33,24 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		}
 	}
 
+	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
+	if err != nil {
+		return B{}, err
+	}
+
 	a0UUID, err := uuid.Parse(a0.UUID)
 	if err != nil {
 		return B{}, err
 	}
 
 	return B{
-		ExternalID: examples.IntToString(a0.ExternalID),
-		ID:         IntToString(a0.ID),
-		IDs:        a0IDs,
-		Nums:       a0Nums,
-		UUID:       a0UUID,
+		ExternalID:   examples.IntToString(a0.ExternalID),
+		ID:           IntToString(a0.ID),
+		IDs:          a0IDs,
+		Nums:         a0Nums,
+		Remarks:      a0Remarks,
+		RemarksError: a0RemarksError,
+		UUID:         a0UUID,
 	}, nil
 }
 

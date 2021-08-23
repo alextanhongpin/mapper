@@ -26,6 +26,6 @@ type Book struct {
 }
 
 type Price struct {
-	Currency string
+	Currency *string
 	Amount   float64
 }

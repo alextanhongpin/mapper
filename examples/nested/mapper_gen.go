@@ -22,7 +22,7 @@ func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
 func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 	return Price{
 		Amount:   p0.Amount,
-		Currency: p0.Currency,
+		Currency: &p0.Currency,
 	}
 }
 
