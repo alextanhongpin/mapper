@@ -190,7 +190,14 @@ func (g *Generator) genStruct(f *jen.File) {
 	// }
 
 	f.Type().Id(g.opt.TypeName).StructFunc(func(group *Group) {
-		for typeName, use := range g.uses {
+		var typeNames []string
+		for typeName := range g.uses {
+			typeNames = append(typeNames, typeName)
+		}
+		sort.Strings(typeNames)
+
+		for _, typeName := range typeNames {
+			use := g.uses[typeName]
 			group.Add(Id(typeName), Do(func(s *Statement) {
 				if use.IsStruct {
 					s.Add(Op("*"))
@@ -211,8 +218,15 @@ func (g *Generator) genConstructor(f *jen.File) {
 
 	typeName := g.opt.TypeName
 
+	var typeNames []string
+	for typeName := range g.uses {
+		typeNames = append(typeNames, typeName)
+	}
+	sort.Strings(typeNames)
+
 	f.Func().Id(fmt.Sprintf("New%s", typeName)).ParamsFunc(func(group *Group) {
-		for structName, use := range g.uses {
+		for _, structName := range typeNames {
+			use := g.uses[structName]
 			group.Add(Id(structName), Do(func(s *Statement) {
 				if use.IsStruct {
 					s.Add(Op("*"))
@@ -222,7 +236,7 @@ func (g *Generator) genConstructor(f *jen.File) {
 	}).Op("*").Id(typeName).Block(
 		Return(Op("&").Id(typeName).ValuesFunc(func(group *Group) {
 			dict := make(Dict)
-			for structName := range g.uses {
+			for _, structName := range typeNames {
 				dict[Id(structName)] = Id(structName)
 			}
 			group.Add(dict)
