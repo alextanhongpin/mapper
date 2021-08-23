@@ -4,8 +4,8 @@ package main
 import examples "github.com/alextanhongpin/mapper/examples"
 
 type MapperImpl struct {
-	uRLer         URLer
 	examplesURLer examples.URLer
+	uRLer         URLer
 }
 
 func NewMapperImpl(uRLer URLer, examplesURLer examples.URLer) *MapperImpl {
