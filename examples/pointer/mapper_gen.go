@@ -39,13 +39,14 @@ func (m *MapperImpl) mapMainCToMainD(c0 C) D {
 	return D{Name: c0.Name}
 }
 
-func (m *MapperImpl) AtoB(a0 A) *B {
-	res := m.mapMainAToMainB(a0)
+func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
+	res := m.mapExamplesAToExamplesB(a0)
 	return &res
 }
 
-func (m *MapperImpl) CtoD(c0 C) D {
-	return m.mapMainCToMainD(c0)
+func (m *MapperImpl) AtoB(a0 A) *B {
+	res := m.mapMainAToMainB(a0)
+	return &res
 }
 
 func (m *MapperImpl) CtoDPointer(c0 C) *D {
@@ -53,7 +54,6 @@ func (m *MapperImpl) CtoDPointer(c0 C) *D {
 	return &res
 }
 
-func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
-	res := m.mapExamplesAToExamplesB(a0)
-	return &res
+func (m *MapperImpl) CtoD(c0 C) D {
+	return m.mapMainCToMainD(c0)
 }

@@ -14,15 +14,6 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
-	a0IDs := make([]uuid.UUID, len(a0.IDs))
-	for i, each := range a0.IDs {
-		var err error
-		a0IDs[i], err = uuid.Parse(each)
-		if err != nil {
-			return B{}, err
-		}
-	}
-
 	a0Nums := make([]int, len(a0.Nums))
 	for i, each := range a0.Nums {
 		var err error
@@ -35,6 +26,15 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	a0UUID, err := uuid.Parse(a0.UUID)
 	if err != nil {
 		return B{}, err
+	}
+
+	a0IDs := make([]uuid.UUID, len(a0.IDs))
+	for i, each := range a0.IDs {
+		var err error
+		a0IDs[i], err = uuid.Parse(each)
+		if err != nil {
+			return B{}, err
+		}
 	}
 
 	return B{
@@ -50,14 +50,6 @@ func (m *MapperImpl) mapMainCToMainD(c0 C) D {
 	return D{ID: IntToString(c0.ID)}
 }
 
-func (m *MapperImpl) AtoB(a0 A) (B, error) {
-	return m.mapMainAToMainB(a0)
-}
-
-func (m *MapperImpl) CtoD(c0 C) D {
-	return m.mapMainCToMainD(c0)
-}
-
 func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
 	res := make([]B, len(a0))
 	for i, each := range a0 {
@@ -70,14 +62,6 @@ func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
 	return res, nil
 }
 
-func (m *MapperImpl) SliceCtoD(c0 []C) []D {
-	res := make([]D, len(c0))
-	for i, each := range c0 {
-		res[i] = m.mapMainCToMainD(each)
-	}
-	return res
-}
-
 func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
 	res := make([]B, len(a0))
 	for i, each := range a0 {
@@ -88,6 +72,22 @@ func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
 		}
 	}
 	return res, nil
+}
+
+func (m *MapperImpl) AtoB(a0 A) (B, error) {
+	return m.mapMainAToMainB(a0)
+}
+
+func (m *MapperImpl) CtoD(c0 C) D {
+	return m.mapMainCToMainD(c0)
+}
+
+func (m *MapperImpl) SliceCtoD(c0 []C) []D {
+	res := make([]D, len(c0))
+	for i, each := range c0 {
+		res[i] = m.mapMainCToMainD(each)
+	}
+	return res
 }
 
 func (m *MapperImpl) VariadicCtoD(c0 ...C) []D {

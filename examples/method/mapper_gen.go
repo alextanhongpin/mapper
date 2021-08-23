@@ -38,14 +38,14 @@ func (m *MapperImpl) mapMainCToMainD(c0 C) (D, error) {
 	return D{ID: c0ID}, nil
 }
 
+func (m *MapperImpl) ExternalAtoB(a0 examples.A) examples.B {
+	return m.mapExamplesAToExamplesB(a0)
+}
+
 func (m *MapperImpl) AtoB(a0 A) B {
 	return m.mapMainAToMainB(a0)
 }
 
 func (m *MapperImpl) CtoD(c0 C) (D, error) {
 	return m.mapMainCToMainD(c0)
-}
-
-func (m *MapperImpl) ExternalAtoB(a0 examples.A) examples.B {
-	return m.mapExamplesAToExamplesB(a0)
 }

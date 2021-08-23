@@ -175,7 +175,7 @@ func (g *Generator) Generate() error {
 		f.Add(stmt)
 	}
 
-	for _, method := range typ.InterfaceMethods {
+	for _, method := range methods {
 		if !g.mappers[method.NormalizedSignature()] {
 			panic("mapper: method not found")
 		}
