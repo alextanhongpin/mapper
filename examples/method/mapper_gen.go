@@ -16,6 +16,7 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 		Map:   a0.Map(),
 		Slice: a0.Slice(),
 		Str:   a0.Str(),
+		Time:  a0.Time(),
 	}
 }
 

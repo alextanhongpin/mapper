@@ -19,7 +19,6 @@ type Type struct {
 	MapKey           *Type
 	MapValue         *Type
 	StructFields     map[string]StructField
-	StructMethods    map[string]Func
 	InterfaceMethods map[string]Func
 	T                types.Type
 }
@@ -51,7 +50,7 @@ func NewType(typ types.Type) *Type {
 	var fieldPkgPath, fieldPkg, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
-	var structMethods, interfaceMethods map[string]Func
+	var interfaceMethods map[string]Func
 
 	switch t := typ.(type) {
 	case *types.Interface:
@@ -90,26 +89,18 @@ func NewType(typ types.Type) *Type {
 			fieldPkgPath = pkg.Path()
 		}
 		fieldType = obj.Name()
-		structMethods = extractNamedMethods(t)
-		// May not have struct methods.
-		isStruct = len(structMethods) > 0
 
 		// The underlying type could be a struct.
-		if structType, isStruct := t.Underlying().(*types.Struct); isStruct {
+		if structType, ok := obj.Type().Underlying().(*types.Struct); ok {
 			isStruct = true
 			structFields = ExtractStructFields(structType)
 		}
 
 		// The underlying type could be a interface.
-		if types.IsInterface(t.Underlying()) {
+		if types.IsInterface(obj.Type().Underlying()) {
 			isInterface = true
-			interfaceMethods = ExtractInterfaceMethods(t.Underlying().(*types.Interface))
+			interfaceMethods = ExtractInterfaceMethods(obj.Type().Underlying().(*types.Interface))
 		}
-		// This does not work
-		//if interfaceType, isInterface := t.Underlying().(*types.Interface); isInterface {
-		//isInterface = true
-		//interfaceMethods = ExtractInterfaceMethods(interfaceType)
-		//}
 	case *types.Struct:
 		isStruct = true
 		structFields = ExtractStructFields(t)
@@ -132,7 +123,6 @@ func NewType(typ types.Type) *Type {
 		MapKey:           mapKey,
 		MapValue:         mapValue,
 		StructFields:     structFields,
-		StructMethods:    structMethods,
 		InterfaceMethods: interfaceMethods,
 		T:                typ,
 	}

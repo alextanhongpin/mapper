@@ -304,7 +304,8 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		// If LHS has a method that maps to RHS field,
 		// e.g. RHS.Name == LHS.Name()
 		// LHS method can also return error as the second argument.
-		if method, ok := from.Type.StructMethods[key]; ok {
+		structMethods := mapper.ExtractNamedMethods(from.Type.T)
+		if method, ok := structMethods[key]; ok {
 			resolver := NewMethodFieldResolver(&method, from.Name, to)
 			resolvers = append(resolvers, resolver)
 			continue
@@ -450,9 +451,10 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				case typ.IsInterface:
 					method = typ.InterfaceMethods[tag.Func]
 				case typ.IsStruct:
-					method = typ.StructMethods[tag.Func]
+					structMethods := mapper.ExtractNamedMethods(typ.T)
+					method = structMethods[tag.Func]
 				default:
-					panic("mapper: tag is invalid")
+					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
 				}
 
 				g.validateFunctionSignatureMatch(&method, lhs, rhs)
@@ -989,7 +991,7 @@ func (g *Generator) validateToAndFromStruct(fn mapper.Func) {
 	g.validateFieldMapping(from.Type, to.Type)
 
 	fromFields := from.Type.StructFields
-	fromMethods := from.Type.StructMethods
+	fromMethods := mapper.ExtractNamedMethods(from.Type.T)
 
 	// Check that the result struct has all the fields provided by the input
 	// struct.

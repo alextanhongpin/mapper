@@ -2,6 +2,7 @@ package main
 
 import (
 	"strconv"
+	"time"
 
 	examples "github.com/alextanhongpin/mapper/examples"
 )
@@ -20,6 +21,7 @@ type A struct {
 	bool  bool
 	slice []string
 	m     map[string]int
+	t     time.Time
 }
 
 func (a *A) ID() int            { return a.id }
@@ -27,6 +29,7 @@ func (a A) Str() string         { return a.str }
 func (a A) Bool() bool          { return a.bool }
 func (a A) Slice() []string     { return a.slice }
 func (a A) Map() map[string]int { return a.m }
+func (a A) Time() time.Time     { return a.t }
 
 type B struct {
 	ID    int
@@ -34,6 +37,7 @@ type B struct {
 	Bool  bool
 	Slice []string
 	Map   map[string]int
+	Time  time.Time
 }
 
 type C struct {

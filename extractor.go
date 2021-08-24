@@ -5,10 +5,19 @@ import (
 	"go/types"
 )
 
-func extractNamedMethods(t *types.Named) map[string]Func {
+func ExtractNamedMethods(T types.Type) map[string]Func {
+	t, ok := T.(*types.Named)
+	if !ok {
+		panic(fmt.Sprintf("mapper: %s is not a named typed", T))
+	}
+
 	result := make(map[string]Func)
 	for i := 0; i < t.NumMethods(); i++ {
-		fn := ExtractFunc(t.Method(i))
+		method := t.Method(i)
+		if !method.Exported() {
+			continue
+		}
+		fn := ExtractFunc(method)
 		result[fn.Name] = *fn
 	}
 	return result
