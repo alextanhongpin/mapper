@@ -817,12 +817,25 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	}
 
 	genReturnOnError := func() *Statement {
+		if fn.Error == nil {
+			panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+		}
+
 		return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
 			if isSlice || to.Type.IsPointer {
+				// Output:
+				// if err != nil {
+				//   return nil, err
+				// }
 				g.Add(List(Id("nil"), Id("err")))
-			} else {
-				g.Add(List(outType.Clone().Values(), Id("err")))
+				return
 			}
+
+			// Output:
+			// if err != nil {
+			//   return B{}, err
+			// }
+			g.Add(List(outType.Clone().Values(), Id("err")))
 		})).Clone()
 	}
 
@@ -831,23 +844,29 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 		Id(fn.Name).ParamsFunc(genInputType).          // Convert(a *A)
 		Do(genReturnType).                             // (*B, error)
 		BlockFunc(func(g *Group) {
-			genNameID := func() *Statement {
+			a0 := func() *Statement {
 				return Id(argsWithIndex(from.Name, 0)).Clone()
 			}
+			// If one of the mappers return error, but the actual function definition
+			// does not, something is wrong.
 			mapperHasError := this.hasErrorByMapper[fn.NormalizedSignature()]
+			if mapperHasError && fn.Error == nil {
+				panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+			}
+
 			if isSlice {
 				// res := make([]B, len(a))
-				// for i, each := range a {
-				//   var err error
-				//   res[i], err = c.mapMainAToMainB(each)
-				//   if err != nil { return err }
-				// }
-				// return res, nil
-				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(genNameID()))))
-				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(genNameID())).BlockFunc(func(g *Group) {
-
+				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(a0()))))
+				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0())).BlockFunc(func(g *Group) {
 					// If the private method does not have error, exit.
 					if mapperHasError {
+						// Output:
+						// for i, each := range a {
+						//   var err error
+						//   res[i], err = c.mapMainAToMainB(each)
+						//   if err != nil { return err }
+						// }
+
 						g.Add(Var().Id("err").Id("error"))
 						g.Add(List(
 							Id("res").Index(Id("i")),
@@ -855,40 +874,98 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 						).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
 						g.Add(genReturnOnError())
 					} else {
+						// Output:
+						// for i, each := range a {
+						//   res[i] = c.mapMainAToMainB(each)
+						// }
 						g.Add(Id("res").Index(Id("i")).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
 					}
 				}))
 
 				if fn.Error != nil {
-					// return &res, nil
-					g.Add(Return(List(Op(pointerOp(to.Type, "&")).Id("res"), Id("nil"))))
-				} else {
-					// return &res
-					g.Add(Return(Op(pointerOp(to.Type, "&")).Id("res")))
+					// return res, nil
+					g.Add(Return(List(Id("res"), Id("nil"))))
+					return
 				}
-			} else {
-				if to.Type.IsPointer {
-					if fn.Error != nil {
-						// Output:
-						// res, err := c.mapMainAToMainB(a)
-						// if err != nil {
-						//   return nil, err
-						// }
-						// return c.mapMainAToMainB(a)
-						g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID()))
-						g.Add(genReturnOnError())
-						g.Add(Return(List(Op("&").Id("res")), Id("nil")))
-					} else {
-						// Output:
-						// res := c.mapMainAToMainB(a)
-						// return &res
-						g.Add(Id("res").Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID()))
-						g.Add(Return(Op("&").Id("res")))
-					}
-				} else {
-					g.Add(Return(Op(pointerOp(to.Type, "&")).Add(this.genShortName()).Dot(fn.NormalizedName()).Call(genNameID())))
-				}
+				// return res
+				g.Add(Return(Id("res")))
+				return
 			}
+
+			if from.Type.IsPointer && to.Type.IsPointer {
+				g.Add(If(a0()).Op("==").Id("nil").Block(
+					ReturnFunc(func(g *Group) {
+						if fn.Error != nil {
+							// Output:
+							// if a0 == nil {
+							//   return nil, nil
+							// }
+							g.Add(List(Id("nil"), Id("nil")))
+						} else {
+							// Output:
+							// if a0 == nil {
+							//   return nil
+							// }
+							g.Add(Id("nil"))
+						}
+					}),
+				))
+
+				if mapperHasError {
+					// Output:
+					// res, err := c.mapMainAToMainB(*a0)
+					// if err != nil {
+					//   return nil, err
+					// }
+					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0())))
+					g.Add(genReturnOnError())
+				} else {
+					// Output:
+					// res := c.mapMainAToMainB(*a0)
+					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0()))
+				}
+
+				if fn.Error != nil {
+					// return &res, nil
+					g.Add(Return(List(Op("&").Id("res")), Id("nil")))
+					return
+				}
+
+				// Output:
+				// return &res
+				g.Add(Return(Op("&").Id("res")))
+				return
+			}
+
+			if to.Type.IsPointer {
+				if mapperHasError {
+					// Output:
+					// res, err := c.mapMainAToMainB(a)
+					// if err != nil {
+					//   return nil, err
+					// }
+					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0()))
+					g.Add(genReturnOnError())
+				} else {
+					// Output:
+					// res := c.mapMainAToMainB(a)
+					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0())
+				}
+
+				if fn.Error != nil {
+					// return &res, nil
+					g.Add(Return(List(Op("&").Id("res")), Id("nil")))
+					return
+				}
+				// Output:
+				// return &res
+				g.Add(Return(Op("&").Id("res")))
+				return
+			}
+
+			// Output:
+			// return c.mapMainAtoMainB(a0)
+			g.Add(Return(this.genShortName().Dot(fn.NormalizedName()).Call(a0())))
 		}).Line()
 }
 

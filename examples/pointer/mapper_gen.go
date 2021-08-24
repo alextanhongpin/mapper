@@ -49,6 +49,14 @@ func (m *MapperImpl) AtoB(a0 A) *B {
 	return &res
 }
 
+func (m *MapperImpl) CPointerToDPointer(c0 *C) *D {
+	if c0 == nil {
+		return nil
+	}
+	res := m.mapMainCToMainD(*c0)
+	return &res
+}
+
 func (m *MapperImpl) CtoD(c0 C) D {
 	return m.mapMainCToMainD(c0)
 }
