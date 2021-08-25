@@ -361,51 +361,60 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		var (
 			rhs          = r.Rhs()
 			tag          = r.Tag()
-			bName        = func() Code { return Id(rhs.Name).Clone() }
-			isLhsPointer bool
-			isRhsPointer = rhs.Type.IsPointer
+			isLHSPointer bool
+			isRHSPointer = rhs.Type.IsPointer
+			hasTag       = tag != nil
+			a0Name       = r.LhsVar
+			a0Selection  = r.RhsVar
+			a0Type       = r.LhsType
+
+			bName = func() Code { return Id(rhs.Name).Clone() }
+			bType = r.RhsType
+
+			requiresOutputPointer = func() bool { return !isLHSPointer && isRHSPointer }
 		)
 
 		if r.IsMethod() {
-			lhs := r.Lhs().(mapper.Func)
-			isLhsPointer = lhs.To.Type.IsPointer
+			method := r.Lhs().(mapper.Func)
+			hasError := method.Error != nil
+			isLHSPointer = method.To.Type.IsPointer
 
 			// No tags, no errors, and equal types means we can assign the field directly.
-			if tag == nil && lhs.Error == nil && lhs.To.Type.Equal(rhs.Type) {
+			if !hasTag && !hasError && method.To.Type.Equal(rhs.Type) {
 				// Output:
 				// Name: a0.Name()
-				dict[bName()] = r.VarRhs()
+				dict[bName()] = a0Selection()
 				continue
 			}
 
-			// Don't exit yet, there might be another step of transformation.
-			if lhs.Error != nil {
+			if hasError {
 				// Output
 				// a0Name, err := a0.Name()
 				// if err != nil { ...  }
-				c.Add(List(r.VarLhs(), Id("err")).Op(":=").Add(r.VarRhs()))
+				c.Add(List(a0Name(), Id("err")).Op(":=").Add(a0Selection()))
 				c.Add(genReturnOnError())
 			} else {
 				// Output:
 				// a0Name := a0.Name()
-				c.Add(r.VarLhs().Op(":=").Add(r.VarRhs()))
+				c.Add(a0Name().Op(":=").Add(a0Selection()))
 			}
-
-			// Call assign to increment the transformation step.
-			r.Assign()
+			// Don't exit yet, there might be another step of transformation.
 		} else {
+			// LHS is also a struct field.
 			lhs := r.Lhs().(mapper.StructField)
-			isLhsPointer = lhs.Type.IsPointer
+			isLHSPointer = lhs.Type.IsPointer
 
 			// No tags and equal types means we can assign the field directly.
-			if tag == nil && lhs.Type.Equal(rhs.Type) {
+			if !hasTag && lhs.Type.Equal(rhs.Type) {
 				// Output:
-				// Name: a0.Name()
-				dict[bName()] = r.VarRhs()
+				// Name: a0.Name
+				dict[bName()] = a0Selection()
 				continue
 			}
-		}
+			// There are probably further conversion for this field.
+		} // END OF if r.IsMethod()
 
+		// TAG.
 		// A tag exists, and could have transformation functions.
 		if tag != nil && tag.HasFunc() {
 			// If a method is provided, it works for single or slice, but the output
@@ -414,66 +423,51 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
-				lhs := r.Lhs().(mapper.StructField)
-				fn := g.loadTagFunction(&lhs)
-				g.validateFunctionSignatureMatch(fn, lhs.Type, rhs.Type)
-
-				// Function is valid.
 				var (
-					hasError       = fn.Error != nil
-					inputIsPointer = fn.From.Type.IsPointer
-					//outputIsPointer = fn.To.Type.IsPointer
-					// funcpkg.CustomFunc
+					lhs                  = r.Lhs().(mapper.StructField)
+					left                 = lhs.Type
+					right                = rhs.Type
+					fn                   = g.loadTagFunction(&lhs)
+					from                 = fn.From.Type
+					to                   = fn.To.Type
+					hasError             = fn.Error != nil
+					requiresInputPointer = !isLHSPointer && from.IsPointer
+					requiresInputValue   = isLHSPointer && !from.IsPointer
 				)
+				g.validateFunctionSignatureMatch(fn, left, right)
 
 				genFuncCall := func() *jen.Statement {
+					// Output:
+					// fn.Fn(a0Name)
 					return Qual(fn.PkgPath, fn.Name).Call(Do(func(s *Statement) {
-						if !isLhsPointer && inputIsPointer {
+						if requiresInputPointer {
 							// Output:
 							// fn.Fn(&a0Name)
 							s.Add(Op("&"))
-						} else if isLhsPointer && !inputIsPointer {
+						} else if requiresInputValue {
 							// Output:
 							// fn.Fn(*a0Name)
 							s.Add(Op("*"))
 						}
-					}).Add(r.VarRhs())).Clone()
+					}).Add(a0Selection())).Clone()
 				}
 
 				if hasError {
-					// The output is a pointer. We need to perform conversion.
-					if isLhsPointer && !isRhsPointer {
-						panic("mapper: pointer to non-pointer not allowed")
-					}
 					// IS SLICE.
-
-					// Not slice can be pointer.
-					if isLhsPointer && !inputIsPointer {
-						// var a1Name *a.A
+					if requiresInputValue {
+						// Output:
+						// var a1Name *fn.T
 						// if a0Name != nil {
-						//   a1Name, err = fn.Fn(*a0Name)
+						//   a1Name, err = fn.Fn(a0Name)
 						//   if err != nil {
 						//      return nil, err
 						//   }
 						// }
-
 						r.Assign()
-						// Output:
-						// var a1Name *a.A
-						c.Add(Var().Add(r.VarLhs()).Add(r.LhsType()))
-
-						// Output:
-						// if a0Name != nil {
-						c.Add(If(r.VarRhs().Op("!=").Id("nil")).Block(
-							// Output:
-							//   a1Name, err = fn.Fn(a0Name)
-							List(r.VarLhs(), Id("err")).Op("=").Add(genFuncCall()),
-							//   if err != nil {
-							//      return nil, err
-							//   }
-							If(Id("err").Op("!=").Id("nil")).Block(
-								genReturnOnError(),
-							),
+						c.Add(Var().Add(a0Name()).Add(internal.GenType(to)))
+						c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
+							List(a0Name(), Id("err")).Op("=").Add(genFuncCall()),
+							If(Id("err").Op("!=").Id("nil")).Block(genReturnOnError()),
 						))
 					} else {
 						// Output:
@@ -481,93 +475,60 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 						// if err != nil {
 						//  return nil, err
 						// }
-
-						// Output:
-						// fn.Fn(a0Name)
 						r.Assign()
 						c.Add(
-							List(r.VarLhs(), Id("err")).Op("=").Add(genFuncCall()),
-							//   if err != nil {
-							//      return nil, err
-							//   }
-							If(Id("err").Op("!=").Id("nil")).Block(
-								genReturnOnError(),
-							),
+							List(a0Name(), Id("err")).Op("=").Add(genFuncCall()),
+							If(Id("err").Op("!=").Id("nil")).Block(genReturnOnError()),
 						)
 					}
-					dict[bName()] = r.VarRhs()
+					dict[bName()] = r.RhsVar()
 					continue
-				}
-				// NO ERROR:
-				// The output is a pointer. We need to perform conversion.
-				if isLhsPointer && !isRhsPointer {
-					panic("mapper: pointer to non-pointer not allowed")
-				}
+				} // END OF hasError for tag.IsFunc()
 
-				if isLhsPointer && !inputIsPointer {
+				// NO ERROR:
+				if requiresInputValue {
 					// Output:
-					// var a1Name *a.A
+					// var a1Name *fn.T
 					// if a0Name != nil {
-					//   a1Name = fn.Fn(*a0Name)
+					// 	 a1Name = fn.Fn(a0Name)
 					// }
 					r.Assign()
-
-					// Output:
-					// var a1Name *a.A
-					c.Add(Var().Add(r.VarLhs()).Add(r.LhsType()))
-
-					// Output:
-					// if a0Name != nil {
-					c.Add(If(r.VarRhs().Op("!=").Id("nil")).Block(
-						// Output:
-						// a1Name = fn.Fn(a0Name)
-						r.VarLhs().Op("=").Add(
-							// Output:
-							// fn.Fn(a0Name)
-							genFuncCall(),
-						),
-					))
+					c.Add(Var().Add(a0Name()).Add(internal.GenType(to)))
+					c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
+						a0Name().Op("=").Add(genFuncCall())),
+					)
 				} else {
-					r.Assign()
 					// Output:
 					// a2Name := fn.Fn(a1Name)
-					c.Add(r.VarLhs().Op(":=").Add(
-						// Output:
-						// fn.Fn(a0Name)
-						genFuncCall(),
-					))
+					r.Assign()
+					c.Add(a0Name().Op(":=").Add(genFuncCall()))
 				}
-			}
+			} // END OF: tag.IsFunc()
 
 			// Func
 			// struct.Method
 			// interface.Method
-		}
-		// []A and []*B
-		// If A != B {}
-		// private mapper.
+			continue
+		} // END OF: TAG CUSTOM FUNCTION MAPPING.
 
-		// The output is a pointer. We need to perform conversion.
-		if isLhsPointer && !isRhsPointer {
-			panic("mapper: pointer to non-pointer not allowed")
-		}
+		// The types might still not match.
 
-		if isLhsPointer && isRhsPointer {
-			// Both are pointers.
-		} else if !isLhsPointer && isRhsPointer {
-			// Convert lhs to pointer.
+		if requiresOutputPointer() {
+			// Since this could be a method call, we still need to assign to another
+			// variable before converting to pointer.
 			// Output:
 			// a1Name := &a0Name
 			r.Assign()
-			c.Add(r.VarLhs().Op(":=").Op("&").Add(r.VarRhs()))
+			c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
 
+			// Output:
 			// bName: a1Name
 			r.Assign()
-			dict[bName()] = r.VarRhs()
-		} else if !isLhsPointer && !isRhsPointer {
-			// bName: a0Name
-			dict[bName()] = r.VarRhs()
+			dict[bName()] = a0Selection()
+			continue
 		}
+		// bName: a0Name
+		dict[bName()] = a0Selection()
 	}
 	fmt.Printf("%#v\n", dict)
 	fmt.Printf("%#v\n", c)
@@ -1325,8 +1286,9 @@ func (g *Generator) validateMethodSignature(lhs mapper.Func, rhs mapper.StructFi
 
 func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
 	var (
-		in  = fn.From.Type
-		out = fn.To.Type
+		in                  = fn.From.Type
+		out                 = fn.To.Type
+		pointerToNonPointer = lhs.IsPointer && !rhs.IsPointer
 	)
 	// Slice A might not equal A
 	// []A != A
@@ -1343,6 +1305,9 @@ func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *ma
 		if out.Type != rhs.Type {
 			panic(ErrMismatchType(out, rhs))
 		}
+	}
+	if pointerToNonPointer {
+		panic("mapper: pointer to non-pointer not allowed")
 	}
 }
 

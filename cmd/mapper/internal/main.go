@@ -7,9 +7,10 @@ import (
 	"github.com/dave/jennifer/jen"
 )
 
+// Resolver ...
 type Resolver interface {
-	VarLhs() *jen.Statement
-	VarRhs() *jen.Statement
+	LhsVar() *jen.Statement
+	RhsVar() *jen.Statement
 
 	Lhs() interface{}
 	Rhs() mapper.StructField
@@ -31,6 +32,7 @@ func argsWithIndex(name string, index int) string {
 	return fmt.Sprintf("%s%d", name, index)
 }
 
+// GenTypeName generates the element type.
 func GenTypeName(T *mapper.Type) *jen.Statement {
 	if T.PkgPath != "" {
 		return jen.Qual(T.PkgPath, T.Type)
@@ -38,6 +40,7 @@ func GenTypeName(T *mapper.Type) *jen.Statement {
 	return jen.Id(T.Type)
 }
 
+// GenType generates the basic type.
 func GenType(T *mapper.Type) *jen.Statement {
 	return jen.Do(func(s *jen.Statement) {
 		if T.IsSlice {

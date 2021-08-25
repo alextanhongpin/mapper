@@ -32,13 +32,13 @@ func (f MethodResolver) Rhs() mapper.StructField {
 	return f.rhs
 }
 
-func (f MethodResolver) VarLhs() *jen.Statement {
+func (f MethodResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
 	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name).Clone()
 }
 
-func (f MethodResolver) VarRhs() *jen.Statement {
+func (f MethodResolver) RhsVar() *jen.Statement {
 	if f.count == 0 {
 		// Output:
 		// a0.Name()
