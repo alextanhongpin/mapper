@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// TODO: Add ignore tags.
 var tagRe *regexp.Regexp
 var tagPatternRe *regexp.Regexp
 
@@ -18,10 +17,15 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("mapper: compile tag regex error: %s", err))
 	}
-	tagPatternRe, err = regexp.Compile(`map:"(([\w.]+)?,?([\w.\/]+)?)"`)
+	tagPatternRe, err = regexp.Compile(`map:"(([\w()]+)?,?([\w.\/]+)?)"`)
 	if err != nil {
 		panic(fmt.Sprintf("mapper: compile tag pattern regex error: %s", err))
 	}
+}
+
+func main() {
+	tag, ok := NewTag(`map:"Name(),CustomFunc"`)
+	fmt.Printf("%#v, %t", tag, ok)
 }
 
 func NewTag(tag string) (*Tag, bool) {
@@ -45,8 +49,13 @@ func NewTag(tag string) (*Tag, bool) {
 	if matched == "" {
 		return nil, false
 	}
-
+	fieldOrMethod := 'f'
 	name := matches[0][2]
+	isMethod := strings.HasSuffix(name, "()")
+	if isMethod {
+		name = strings.ReplaceAll(name, "()", "")
+		fieldOrMethod = 'm'
+	}
 	pkgPath, expr := path.Split(matches[0][3])
 	pkgPath = stripSlash(pkgPath) // Removes trailing slash
 
@@ -69,17 +78,19 @@ func NewTag(tag string) (*Tag, bool) {
 	}
 
 	return &Tag{
-		Name:     name,
-		PkgPath:  pkgPath,
-		Pkg:      pkg,
-		TypeName: typeName,
-		Func:     fn,
-		Tag:      tag,
+		Name:          name,
+		FieldOrMethod: fieldOrMethod,
+		PkgPath:       pkgPath,
+		Pkg:           pkg,
+		TypeName:      typeName,
+		Func:          fn,
+		Tag:           tag,
 	}, true
 }
 
 type Tag struct {
-	Name string
+	Name          string
+	FieldOrMethod rune
 	// If the pkgPath is not set, we assume it to be the same as the current root directory.
 	PkgPath string `example:"github.com/your.org/yourpkg"`
 	Pkg     string `example:"yourpkg"`
@@ -99,6 +110,10 @@ func (t Tag) HasFunc() bool {
 // mapping.
 func (t Tag) IsAlias() bool {
 	return t.Name != ""
+}
+
+func (t Tag) IsField() bool {
+	return t.FieldOrMethod == 'f'
 }
 
 func (t Tag) IsFunc() bool {

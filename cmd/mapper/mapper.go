@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/alextanhongpin/mapper"
+	"github.com/alextanhongpin/mapper/cmd/mapper/internal"
 	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
 )
@@ -182,6 +183,15 @@ func (g *Generator) Generate() error {
 	return f.Save(out) // e.g. main_gen.go
 }
 
+func (g *Generator) usesKeys() []string {
+	var keys []string
+	for key := range g.uses {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func (g *Generator) genStruct(f *jen.File) {
 	// Output:
 	// type Converter struct {
@@ -190,12 +200,7 @@ func (g *Generator) genStruct(f *jen.File) {
 	// }
 
 	f.Type().Id(g.opt.TypeName).StructFunc(func(group *Group) {
-		var typeNames []string
-		for typeName := range g.uses {
-			typeNames = append(typeNames, typeName)
-		}
-		sort.Strings(typeNames)
-
+		typeNames := g.usesKeys()
 		for _, typeName := range typeNames {
 			use := g.uses[typeName]
 			group.Add(Id(typeName), Do(func(s *Statement) {
@@ -217,12 +222,7 @@ func (g *Generator) genConstructor(f *jen.File) {
 	// }
 
 	typeName := g.opt.TypeName
-
-	var typeNames []string
-	for typeName := range g.uses {
-		typeNames = append(typeNames, typeName)
-	}
-	sort.Strings(typeNames)
+	typeNames := g.usesKeys()
 
 	f.Func().Id(fmt.Sprintf("New%s", typeName)).ParamsFunc(func(group *Group) {
 		for _, structName := range typeNames {
@@ -274,6 +274,10 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		// if err != nil {
 		//   return Bar{}, err
 		// }
+		if fn.Error == nil {
+			panic(ErrMissingReturnError(fn))
+		}
+
 		return If(Id("err").Op("!=").Id("nil").Block(
 			Return(
 				List(
@@ -284,36 +288,292 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		).Clone()
 	}
 
+	// Loop through all the target keys.
 	var keys []string
 	for key := range to.Type.StructFields {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
+	var resolversV1 []internal.Resolver
 	var resolvers []FieldResolver
 	for _, key := range keys {
+		// The RHS struct field.
 		to := to.Type.StructFields[key]
-		// If LHS field matche the RHS field ...
-		field, ok := from.Type.StructFields[key]
-		if ok {
+
+		// If LHS field matches the RHS field ...
+		if field, ok := from.Type.StructFields[key]; ok {
+			if field.Tag != nil && !field.Tag.IsField() {
+				// Has a LHS struct field, but calls the method instead.
+				//
+				// Input:
+				// type Lhs struct{
+				//   // Custom `map` tag to indicate what method name to call.
+				//   name string `map:"Name(),CustomFunc"`
+				// }
+				//
+				// func (l Lhs) Name() string {}
+				//
+				structMethods := mapper.ExtractNamedMethods(from.Type.T)
+				method, ok := structMethods[key]
+				if !ok {
+					panic(fmt.Sprintf("mapper: method not found: %s", field.Tag.Name))
+				}
+
+				resolversV1 = append(resolversV1, internal.NewMethodResolver(from.Name, &field, method, to))
+				continue
+			}
+			// Just an ordinary LHS struct field. Noice.
 			resolver := NewStructFieldResolver(&field, from.Name, to)
 			resolvers = append(resolvers, resolver)
+
+			resolversV1 = append(resolversV1, internal.NewFieldResolver(from.Name, field, to))
 			continue
 		}
 
-		// If LHS has a method that maps to RHS field,
-		// e.g. RHS.Name == LHS.Name()
+		// Has a LHS struct field, but calls the method instead.
+		// The difference is there's no custom `map` tag to tell us what method it
+		// is. Rather, we infer from the name of the RHS field.
+		//
+		// Input:
+		// type Lhs struct{
+		//   name string
+		// }
+		//
+		// func (l Lhs) Name() string {}
+		//
 		// LHS method can also return error as the second argument.
 		structMethods := mapper.ExtractNamedMethods(from.Type.T)
 		if method, ok := structMethods[key]; ok {
 			resolver := NewMethodFieldResolver(&method, from.Name, to)
 			resolvers = append(resolvers, resolver)
+
+			resolversV1 = append(resolversV1, internal.NewMethodResolver(from.Name, nil, method, to))
 			continue
 		}
-		panic("mapper: method signature not found")
+
+		panic(fmt.Sprintf("mapper: cannot map field %q for %s", key, to.Type.Signature()))
 	}
 
+	var c C
 	dict := make(Dict)
+	for _, r := range resolversV1 {
+		var (
+			rhs          = r.Rhs()
+			tag          = r.Tag()
+			bName        = func() Code { return Id(rhs.Name).Clone() }
+			isLhsPointer bool
+			isRhsPointer = rhs.Type.IsPointer
+		)
+
+		if r.IsMethod() {
+			lhs := r.Lhs().(mapper.Func)
+			isLhsPointer = lhs.To.Type.IsPointer
+
+			// No tags, no errors, and equal types means we can assign the field directly.
+			if tag == nil && lhs.Error == nil && lhs.To.Type.Equal(rhs.Type) {
+				// Output:
+				// Name: a0.Name()
+				dict[bName()] = r.VarRhs()
+				continue
+			}
+
+			// Don't exit yet, there might be another step of transformation.
+			if lhs.Error != nil {
+				// Output
+				// a0Name, err := a0.Name()
+				// if err != nil { ...  }
+				c.Add(List(r.VarLhs(), Id("err")).Op(":=").Add(r.VarRhs()))
+				c.Add(genReturnOnError())
+			} else {
+				// Output:
+				// a0Name := a0.Name()
+				c.Add(r.VarLhs().Op(":=").Add(r.VarRhs()))
+			}
+
+			// Call assign to increment the transformation step.
+			r.Assign()
+		} else {
+			lhs := r.Lhs().(mapper.StructField)
+			isLhsPointer = lhs.Type.IsPointer
+
+			// No tags and equal types means we can assign the field directly.
+			if tag == nil && lhs.Type.Equal(rhs.Type) {
+				// Output:
+				// Name: a0.Name()
+				dict[bName()] = r.VarRhs()
+				continue
+			}
+		}
+
+		// A tag exists, and could have transformation functions.
+		if tag != nil && tag.HasFunc() {
+			// If a method is provided, it works for single or slice, but the output
+			// raw type must match.
+
+			// The tag defines a custom function, TransformationFunc that can be used to
+			// map LHS field to RHS.
+			if tag.IsFunc() {
+				lhs := r.Lhs().(mapper.StructField)
+				fn := g.loadTagFunction(&lhs)
+				g.validateFunctionSignatureMatch(fn, lhs.Type, rhs.Type)
+
+				// Function is valid.
+				var (
+					hasError       = fn.Error != nil
+					inputIsPointer = fn.From.Type.IsPointer
+					//outputIsPointer = fn.To.Type.IsPointer
+					// funcpkg.CustomFunc
+				)
+
+				genFuncCall := func() *jen.Statement {
+					return Qual(fn.PkgPath, fn.Name).Call(Do(func(s *Statement) {
+						if !isLhsPointer && inputIsPointer {
+							// Output:
+							// fn.Fn(&a0Name)
+							s.Add(Op("&"))
+						} else if isLhsPointer && !inputIsPointer {
+							// Output:
+							// fn.Fn(*a0Name)
+							s.Add(Op("*"))
+						}
+					}).Add(r.VarRhs())).Clone()
+				}
+
+				if hasError {
+					// The output is a pointer. We need to perform conversion.
+					if isLhsPointer && !isRhsPointer {
+						panic("mapper: pointer to non-pointer not allowed")
+					}
+					// IS SLICE.
+
+					// Not slice can be pointer.
+					if isLhsPointer && !inputIsPointer {
+						// var a1Name *a.A
+						// if a0Name != nil {
+						//   a1Name, err = fn.Fn(*a0Name)
+						//   if err != nil {
+						//      return nil, err
+						//   }
+						// }
+
+						r.Assign()
+						// Output:
+						// var a1Name *a.A
+						c.Add(Var().Add(r.VarLhs()).Add(r.LhsType()))
+
+						// Output:
+						// if a0Name != nil {
+						c.Add(If(r.VarRhs().Op("!=").Id("nil")).Block(
+							// Output:
+							//   a1Name, err = fn.Fn(a0Name)
+							List(r.VarLhs(), Id("err")).Op("=").Add(genFuncCall()),
+							//   if err != nil {
+							//      return nil, err
+							//   }
+							If(Id("err").Op("!=").Id("nil")).Block(
+								genReturnOnError(),
+							),
+						))
+					} else {
+						// Output:
+						// a2Name, err := fn.Fn(a1Name)
+						// if err != nil {
+						//  return nil, err
+						// }
+
+						// Output:
+						// fn.Fn(a0Name)
+						r.Assign()
+						c.Add(
+							List(r.VarLhs(), Id("err")).Op("=").Add(genFuncCall()),
+							//   if err != nil {
+							//      return nil, err
+							//   }
+							If(Id("err").Op("!=").Id("nil")).Block(
+								genReturnOnError(),
+							),
+						)
+					}
+					dict[bName()] = r.VarRhs()
+					continue
+				}
+				// NO ERROR:
+				// The output is a pointer. We need to perform conversion.
+				if isLhsPointer && !isRhsPointer {
+					panic("mapper: pointer to non-pointer not allowed")
+				}
+
+				if isLhsPointer && !inputIsPointer {
+					// Output:
+					// var a1Name *a.A
+					// if a0Name != nil {
+					//   a1Name = fn.Fn(*a0Name)
+					// }
+					r.Assign()
+
+					// Output:
+					// var a1Name *a.A
+					c.Add(Var().Add(r.VarLhs()).Add(r.LhsType()))
+
+					// Output:
+					// if a0Name != nil {
+					c.Add(If(r.VarRhs().Op("!=").Id("nil")).Block(
+						// Output:
+						// a1Name = fn.Fn(a0Name)
+						r.VarLhs().Op("=").Add(
+							// Output:
+							// fn.Fn(a0Name)
+							genFuncCall(),
+						),
+					))
+				} else {
+					r.Assign()
+					// Output:
+					// a2Name := fn.Fn(a1Name)
+					c.Add(r.VarLhs().Op(":=").Add(
+						// Output:
+						// fn.Fn(a0Name)
+						genFuncCall(),
+					))
+				}
+			}
+
+			// Func
+			// struct.Method
+			// interface.Method
+		}
+		// []A and []*B
+		// If A != B {}
+		// private mapper.
+
+		// The output is a pointer. We need to perform conversion.
+		if isLhsPointer && !isRhsPointer {
+			panic("mapper: pointer to non-pointer not allowed")
+		}
+
+		if isLhsPointer && isRhsPointer {
+			// Both are pointers.
+		} else if !isLhsPointer && isRhsPointer {
+			// Convert lhs to pointer.
+			// Output:
+			// a1Name := &a0Name
+			r.Assign()
+			c.Add(r.VarLhs().Op(":=").Op("&").Add(r.VarRhs()))
+
+			// bName: a1Name
+			r.Assign()
+			dict[bName()] = r.VarRhs()
+		} else if !isLhsPointer && !isRhsPointer {
+			// bName: a0Name
+			dict[bName()] = r.VarRhs()
+		}
+	}
+	fmt.Printf("%#v\n", dict)
+	fmt.Printf("%#v\n", c)
+	fmt.Println(dict)
+
+	dict = make(Dict)
 	for _, resolver := range resolvers {
 		var (
 			rhs = resolver.Rhs().Type
