@@ -14,13 +14,6 @@ import (
 
 const GeneratorName = "github.com/alextanhongpin/mapper"
 
-type C []Code
-
-func (c *C) Add(code ...Code) *C {
-	*c = append(*c, code...)
-	return c
-}
-
 func main() {
 	if err := mapper.New(func(opt mapper.Option) error {
 		gen := NewGenerator(opt)
@@ -44,91 +37,6 @@ func NewGenerator(opt mapper.Option) *Generator {
 		mappers:          make(map[string]bool),
 		hasErrorByMapper: make(map[string]bool),
 	}
-}
-
-type FieldResolver interface {
-	Name() string
-	Var() *Statement
-	Selection() *Statement
-	Lhs() interface{}
-	Rhs() mapper.StructField
-	IsField() bool
-	IsMethod() bool
-}
-
-type fieldResolver struct {
-	method *mapper.Func
-	field  *mapper.StructField
-	name   string
-	rhs    mapper.StructField
-}
-
-func NewMethodFieldResolver(method *mapper.Func, name string, rhs mapper.StructField) *fieldResolver {
-	return &fieldResolver{
-		method: method,
-		name:   argsWithIndex(name, 0),
-		rhs:    rhs,
-	}
-}
-
-func NewStructFieldResolver(field *mapper.StructField, name string, rhs mapper.StructField) *fieldResolver {
-	return &fieldResolver{
-		field: field,
-		name:  argsWithIndex(name, 0),
-		rhs:   rhs,
-	}
-}
-
-func (f fieldResolver) SetName(name string) {
-	f.name = argsWithIndex(name, 0)
-}
-
-func (f fieldResolver) Name() string {
-	return f.name
-}
-
-func (f fieldResolver) Var() *Statement {
-	if f.method != nil {
-		return Id(f.name + f.method.Name).Clone()
-	}
-	if f.field != nil {
-		return Id(f.name + f.field.Name).Clone()
-	}
-	return nil
-}
-
-func (f fieldResolver) Selection() *Statement {
-	if f.method != nil {
-		return Id(f.name).Dot(f.method.Name).Call().Clone()
-	}
-	if f.field != nil {
-		return Id(f.name).Dot(f.field.Name).Clone()
-	}
-	return nil
-}
-
-func (f fieldResolver) Rhs() mapper.StructField {
-	return f.rhs
-}
-
-func (f fieldResolver) Lhs() interface{} {
-	if f.IsField() {
-		return f.field
-	}
-
-	if f.IsMethod() {
-		return f.method
-	}
-
-	panic("mapper: resolver must be field or method")
-}
-
-func (f fieldResolver) IsField() bool {
-	return f.field != nil && f.method == nil
-}
-
-func (f fieldResolver) IsMethod() bool {
-	return f.method != nil && f.field == nil
 }
 
 func (g *Generator) Generate() error {
@@ -244,49 +152,18 @@ func (g *Generator) genConstructor(f *jen.File) {
 	).Line()
 }
 
-type mapperFunc struct {
-	Fn         *mapper.Func
-	In         mapper.StructField
-	structName string
-	callerID   *Statement // customfuncpkg.CustomFunc | c.customstructpkg.structname.StructMethod | c.custominterfacepkg.interfacename.InterfaceMethod
-	resolver   FieldResolver
-}
-
-func (m mapperFunc) CallerID() *Statement {
-	return m.callerID.Clone()
-}
-
 // genPrivateMethod generates the most basic, struct A to struct B conversion
 // without pointers, slice etc.
 func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Statement {
 	var (
-		typeName = g.opt.TypeName
-		fnName   = fn.NormalizedName()
-		from     = fn.From
-		to       = fn.To
+		typeName       = g.opt.TypeName
+		fnName         = fn.NormalizedName()
+		from           = fn.From
+		to             = fn.To
+		parentHasError = fn.Error != nil
 	)
 
-	var mappersWithError []mapperFunc
-	var pointers, methodsWithError C
-
-	genReturnOnError := func() *Statement {
-		// Output:
-		// if err != nil {
-		//   return Bar{}, err
-		// }
-		if fn.Error == nil {
-			panic(ErrMissingReturnError(fn))
-		}
-
-		return If(Id("err").Op("!=").Id("nil").Block(
-			Return(
-				List(
-					genType(to.Type).Values(Dict{}),
-					Id("err"),
-				),
-			)),
-		).Clone()
-	}
+	funcBuilder := internal.NewFuncBuilder(&fn, from.Type, to.Type)
 
 	// Loop through all the target keys.
 	var keys []string
@@ -295,8 +172,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	}
 	sort.Strings(keys)
 
-	var resolversV1 []internal.Resolver
-	var resolvers []FieldResolver
+	var resolvers []internal.Resolver
 	for _, key := range keys {
 		// The RHS struct field.
 		to := to.Type.StructFields[key]
@@ -320,14 +196,11 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					panic(fmt.Sprintf("mapper: method not found: %s", field.Tag.Name))
 				}
 
-				resolversV1 = append(resolversV1, internal.NewMethodResolver(from.Name, &field, method, to))
+				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, &field, method, to))
 				continue
 			}
 			// Just an ordinary LHS struct field. Noice.
-			resolver := NewStructFieldResolver(&field, from.Name, to)
-			resolvers = append(resolvers, resolver)
-
-			resolversV1 = append(resolversV1, internal.NewFieldResolver(from.Name, field, to))
+			resolvers = append(resolvers, internal.NewFieldResolver(from.Name, field, to))
 			continue
 		}
 
@@ -345,42 +218,36 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		// LHS method can also return error as the second argument.
 		structMethods := mapper.ExtractNamedMethods(from.Type.T)
 		if method, ok := structMethods[key]; ok {
-			resolver := NewMethodFieldResolver(&method, from.Name, to)
-			resolvers = append(resolvers, resolver)
-
-			resolversV1 = append(resolversV1, internal.NewMethodResolver(from.Name, nil, method, to))
+			resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
 			continue
 		}
 
 		panic(fmt.Sprintf("mapper: cannot map field %q for %s", key, to.Type.Signature()))
 	}
 
-	var c C
+	var c internal.C
 	dict := make(Dict)
-	for _, r := range resolversV1 {
+	for _, r := range resolvers {
 		var (
-			rhs          = r.Rhs()
-			tag          = r.Tag()
-			isLHSPointer bool
-			isRHSPointer = rhs.Type.IsPointer
-			hasTag       = tag != nil
-			a0Name       = r.LhsVar
-			a0Selection  = r.RhsVar
-			a0Type       = r.LhsType
-
-			bName = func() Code { return Id(rhs.Name).Clone() }
-			bType = r.RhsType
-
-			requiresOutputPointer = func() bool { return !isLHSPointer && isRHSPointer }
+			lhsType *mapper.Type
+			tag     = r.Tag()
+			rhsType = r.Rhs().Type
+			hasTag  = tag != nil
+			bName   = func() *jen.Statement {
+				return Id(r.Rhs().Name)
+			}
+			a0Name      = r.LhsVar
+			a0Selection = r.RhsVar
 		)
 
+		// IS METHOD CALL.
 		if r.IsMethod() {
 			method := r.Lhs().(mapper.Func)
 			hasError := method.Error != nil
-			isLHSPointer = method.To.Type.IsPointer
+			lhsType = method.To.Type
 
 			// No tags, no errors, and equal types means we can assign the field directly.
-			if !hasTag && !hasError && method.To.Type.Equal(rhs.Type) {
+			if !hasTag && !hasError && lhsType.Equal(rhsType) {
 				// Output:
 				// Name: a0.Name()
 				dict[bName()] = a0Selection()
@@ -388,11 +255,14 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			}
 
 			if hasError {
+				if !parentHasError {
+					panic(ErrMissingReturnError(fn))
+				}
 				// Output
 				// a0Name, err := a0.Name()
 				// if err != nil { ...  }
 				c.Add(List(a0Name(), Id("err")).Op(":=").Add(a0Selection()))
-				c.Add(genReturnOnError())
+				c.Add(funcBuilder.GenReturnOnError())
 			} else {
 				// Output:
 				// a0Name := a0.Name()
@@ -400,12 +270,12 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			}
 			// Don't exit yet, there might be another step of transformation.
 		} else {
-			// LHS is also a struct field.
+			// IS STRUCT FIELD.
 			lhs := r.Lhs().(mapper.StructField)
-			isLHSPointer = lhs.Type.IsPointer
+			lhsType = lhs.Type
 
 			// No tags and equal types means we can assign the field directly.
-			if !hasTag && lhs.Type.Equal(rhs.Type) {
+			if !hasTag && lhsType.Equal(rhsType) {
 				// Output:
 				// Name: a0.Name
 				dict[bName()] = a0Selection()
@@ -414,243 +284,39 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// There are probably further conversion for this field.
 		} // END OF if r.IsMethod()
 
+		// METHOD OR FIELD RESOLVED.
+
 		// TAG.
 		// A tag exists, and could have transformation functions.
 		if tag != nil && tag.HasFunc() {
 			// If a method is provided, it works for single or slice, but the output
 			// raw type must match.
 
+			// TAG: FUNC
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
-				var (
-					lhs                  = r.Lhs().(mapper.StructField)
-					left                 = lhs.Type
-					right                = rhs.Type
-					fn                   = g.loadTagFunction(&lhs)
-					from                 = fn.From.Type
-					to                   = fn.To.Type
-					hasError             = fn.Error != nil
-					requiresInputPointer = !isLHSPointer && from.IsPointer
-					requiresInputValue   = isLHSPointer && !from.IsPointer
-				)
-				g.validateFunctionSignatureMatch(fn, left, right)
+				lhs := r.Lhs().(mapper.StructField)
+				fn := g.loadTagFunction(&lhs)
 
-				genFuncCall := func() *jen.Statement {
-					// Output:
-					// fn.Fn(a0Name)
-					return Qual(fn.PkgPath, fn.Name).Call(Do(func(s *Statement) {
-						if requiresInputPointer {
-							// Output:
-							// fn.Fn(&a0Name)
-							s.Add(Op("&"))
-						} else if requiresInputValue {
-							// Output:
-							// fn.Fn(*a0Name)
-							s.Add(Op("*"))
-						}
-					}).Add(a0Selection())).Clone()
-				}
-
-				if hasError {
-					// IS SLICE.
-					if requiresInputValue {
-						// Output:
-						// var a1Name *fn.T
-						// if a0Name != nil {
-						//   a1Name, err = fn.Fn(a0Name)
-						//   if err != nil {
-						//      return nil, err
-						//   }
-						// }
-						r.Assign()
-						c.Add(Var().Add(a0Name()).Add(internal.GenType(to)))
-						c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-							List(a0Name(), Id("err")).Op("=").Add(genFuncCall()),
-							If(Id("err").Op("!=").Id("nil")).Block(genReturnOnError()),
-						))
-					} else {
-						// Output:
-						// a2Name, err := fn.Fn(a1Name)
-						// if err != nil {
-						//  return nil, err
-						// }
-						r.Assign()
-						c.Add(
-							List(a0Name(), Id("err")).Op("=").Add(genFuncCall()),
-							If(Id("err").Op("!=").Id("nil")).Block(genReturnOnError()),
-						)
-					}
-					dict[bName()] = r.RhsVar()
-					continue
-				} // END OF hasError for tag.IsFunc()
-
-				// NO ERROR:
-				if requiresInputValue {
-					// Output:
-					// var a1Name *fn.T
-					// if a0Name != nil {
-					// 	 a1Name = fn.Fn(a0Name)
-					// }
-					r.Assign()
-					c.Add(Var().Add(a0Name()).Add(internal.GenType(to)))
-					c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-						a0Name().Op("=").Add(genFuncCall())),
-					)
-				} else {
-					// Output:
-					// a2Name := fn.Fn(a1Name)
-					r.Assign()
-					c.Add(a0Name().Op(":=").Add(genFuncCall()))
-				}
-			} // END OF: tag.IsFunc()
-
-			// Func
-			// struct.Method
-			// interface.Method
-			continue
-		} // END OF: TAG CUSTOM FUNCTION MAPPING.
-
-		// The types might still not match.
-
-		if requiresOutputPointer() {
-			// Since this could be a method call, we still need to assign to another
-			// variable before converting to pointer.
-			// Output:
-			// a1Name := &a0Name
-			r.Assign()
-			c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
-
-			// Output:
-			// bName: a1Name
-			r.Assign()
-			dict[bName()] = a0Selection()
-			continue
-		}
-		// bName: a0Name
-		dict[bName()] = a0Selection()
-	}
-	fmt.Printf("%#v\n", dict)
-	fmt.Printf("%#v\n", c)
-	fmt.Println(dict)
-
-	dict = make(Dict)
-	for _, resolver := range resolvers {
-		var (
-			rhs = resolver.Rhs().Type
-			// Argument name has a `0` to indicate it's position, which is useful to
-			// avoid conflict in naming.
-			a0Name      = resolver.Var
-			a0Selection = resolver.Selection
-
-			// The return type field name.
-			bName = resolver.Rhs().Name
-		)
-
-		// Resolves method. Note that tag function transformation does not apply to
-		// methods.
-		if resolver.IsMethod() {
-			method := resolver.Lhs().(*mapper.Func)
-			if method.Error != nil {
-				// Output:
-				// a0Name, err := a0.Name()
-				// if err != nil {
-				//   return B{}, err
-				// }
-				methodsWithError.Add(
-					List(a0Name(), Id("err")).Op(":=").Add(a0Selection()),
-					genReturnOnError().Line(),
-				)
-
-				// Output:
-				// name: a0Name
-				dict[Id(bName)] = a0Name()
-			} else {
-				// Output:
-				// name: a0.Name()
-				dict[Id(bName)] = a0Selection()
-			}
-			continue
-		}
-
-		var (
-			left = resolver.Lhs().(*mapper.StructField)
-			lhs  = left.Type
-		)
-
-		// Check if there is a tag transformation.
-		if tag := left.Tag; tag != nil && tag.HasFunc() {
-			// The tag defines a custom function, TransformationFunc that can be used to
-			// map LHS field to RHS.
-			if tag.IsFunc() {
-				fn := g.loadTagFunction(left)
-				g.validateFunctionSignatureMatch(fn, lhs, rhs)
-
-				// If the TransformationFunc returns error, it needs to be handled and
-				// returned early.
 				if fn.Error != nil {
-					mappersWithError = append(mappersWithError, mapperFunc{
-						Fn:       fn,
-						In:       *left,
-						resolver: resolver,
-						// funcpkg.CustomFunc
-						callerID: Qual(fn.PkgPath, fn.Name),
-					})
-					// Name: aName,
-					dict[Id(bName)] = a0Name()
-					continue
-				}
-
-				// No errors.
-				// RHS field is a pointer.
-				// LHS needs to be converted to a pointer too.
-				g.validatePointerConversion(lhs, rhs)
-				if rhs.IsPointer {
-					// customfuncpkg.CustomFunc(a0.Name)
-					callerID := Qual(fn.PkgPath, fn.Name)
-					if lhs.IsPointer {
-						// Output:
-						// var a0Name *outpkg.OutType
-						// if a0.Name != nil {
-						//   res := customfuncpkg.CustomFunc(*a0.Name)
-						//   a0Name = &res
-						// }
-						pointers.Add(
-							Var().Add(a0Name()).Op("*").Add(genType(rhs)),
-							If(a0Selection()).Block(
-								Id("tmp").Op(":=").Add(callerID.Call(Op("*").Add(a0Selection()))),
-								a0Name().Op("=").Op("&").Id("tmp"),
-							),
-						)
-
-						// Output:
-						// Name: a0Name
-						dict[Id(bName)] = a0Name()
-					} else {
-						// Output:
-						// a0Name := customfuncpkg.CustomFunc(a0.Name)
-						pointers.Add(a0Name().Op(":=").Add(callerID.Call(a0Selection())))
-
-						// Output:
-						// Name: &a0Name
-						dict[Id(bName)] = Do(func(s *Statement) {
-							// If the output of the function is not a pointer.
-							if !fn.To.Type.IsPointer {
-								s.Add(Op("&"))
-							}
-						}).Add(a0Name())
+					// TODO: FIXME
+					if !parentHasError {
+						panic(ErrMissingReturnError(*fn))
 					}
-					continue
 				}
 
-				// name: customfuncpkg.CustomFunc(a.Name)
-				dict[Id(bName)] = Qual(fn.PkgPath, fn.Name).Call(a0Selection())
-				continue
+				// Build the func.
+				funcBuilder.BuildFuncCall(&c, fn, lhsType, rhsType)
+
+				// The new type is the fn output type.
+				lhsType = fn.To.Type
 			}
 
+			// TAG: IS METHOD
 			// The tag loads a custom struct or interface method.
 			if tag.IsMethod() {
-				fieldPkgPath := left.PkgPath
+				fieldPkgPath := lhsType.PkgPath
 				if tag.IsImported() {
 					fieldPkgPath = tag.PkgPath
 				}
@@ -677,300 +343,81 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				default:
 					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
 				}
-
-				g.validateFunctionSignatureMatch(&method, lhs, rhs)
+				g.validateFunctionSignatureMatch(&method, lhsType, rhsType)
+				if method.Error != nil && !parentHasError {
+					panic(ErrMissingReturnError(fn))
+				}
 
 				// To avoid different packages having same struct name, prefix the
 				// struct name with the package name.
-				structPackageName := tag.Pkg + tag.TypeName
-				if tag.Pkg == "" {
-					structPackageName = mapper.LowerFirst(structPackageName)
-				}
-				g.uses[structPackageName] = *typ
+				g.uses[tag.Var()] = *typ
 
-				if method.Error != nil {
-					mappersWithError = append(mappersWithError, mapperFunc{
-						Fn:         &method,
-						In:         *left,
-						structName: structPackageName,
-						resolver:   resolver,
-						// c.structpkgCustomStruct.CustomMethod(a0.Name)
-						callerID: g.genShortName().Dot(structPackageName).Dot(method.Name).Call(a0Selection()),
-					})
-					// Name: aName,
-					dict[Id(bName)] = a0Name()
-					continue
-				}
-
-				g.validatePointerConversion(lhs, rhs)
-				if rhs.IsPointer {
-					// c.interfacePkgInterface.CustomMethod
-					callerID := Add(g.genShortName()).Dot(structPackageName).Dot(method.Name)
-					if lhs.IsPointer {
-						// Output:
-						// var a0Name *outpkg.OutType
-						// if a0.Name != nil {
-						//   res := c.interfacePkgInterface.CustomMethod(*a.Name)
-						//   a0Name = &res
-						// }
-						pointers.Add(
-							Var().Add(a0Name()).Op("*").Add(genType(rhs)),
-							If(a0Selection()).Block(
-								Id("res").Op(":=").Add(callerID.Call(Op("*").Add(a0Selection()))),
-								a0Name().Op("=").Op("&").Id("res"),
-							),
-						)
-						// a0Name: a0Name
-						dict[Id(bName)] = a0Name()
-					} else {
-						// a0Name := c.interfacePkgInterface.CustomMethod(a.Name)
-						// Name: &a0Name
-						pointers.Add(a0Name().Op(":=").Add(callerID.Call(a0Selection())))
-						dict[Id(bName)] = Do(func(s *Statement) {
-							// Only add pointer return type if the method is not returning
-							// pointer already.
-							if !method.To.Type.IsPointer {
-								s.Add(Op("&"))
-							}
-
-						}).Add(a0Name())
-					}
-					continue
-
-				}
-				// Name: c.interfacePkgInterface.CustomMethod(a.Name)
-				dict[Id(bName)] = g.genShortName().Dot(structPackageName).Dot(method.Name).Call(a0Selection())
-				continue
+				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()), &method, lhsType, rhsType)
 			}
-		} // End of custom tag function.
+		} // END OF TAG: IS METHOD
 
-		// LHS field does not match RHS field for some reason.
-		// This could be a struct to struct conversion that requires another
-		// internally implemented mapper.
-		if !lhs.Equal(rhs) {
-			// But the same type exists, could be a value to pointer conversion.
-			// PkgPath matters.
-			if (lhs.Type == rhs.Type) && (lhs.PkgPath == rhs.PkgPath) && (!lhs.IsPointer && rhs.IsPointer) {
-				dict[Id(bName)] = Op("&").Add(a0Selection())
-				continue
-			}
-			// Check if there is a private mapper with the signature that accepts LHS
-			// and returns RHS .
-			methodSignature := buildFnSignature(lhs, rhs)
-			_, hasSignature := g.mappers[methodSignature]
-			if !hasSignature {
-				panic(ErrConversion(lhs, rhs))
-			}
+		// PRIVATE MAPPER.
 
-			var method *mapper.Func
-			for _, met := range g.opt.Type.InterfaceMethods {
-				if met.NormalizedSignature() == methodSignature {
-					method = &met
-					break
-				}
-			}
-			if method == nil {
-				panic(fmt.Sprintf("mapper: no signature found %s", methodSignature))
-			}
+		// RETURN VALUE.
+		if requiresOutputPointer() {
+			// Since this could be a method call, we still need to assign to another
+			// variable before converting to pointer.
+			// Output:
+			// a1Name := &a0Name
+			r.Assign()
+			c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
 
-			// If the mapper method returns an error, or if it is actually a slice
-			// to slice conversion ...
-			if method.Error != nil || rhs.IsSlice {
-				mappersWithError = append(mappersWithError, mapperFunc{
-					Fn:       method,
-					In:       *left,
-					resolver: resolver,
-					// c.mapAToB
-					callerID: g.genShortName().Dot(method.NormalizedName()),
-				})
-				// Output:
-				// Name: a0Name,
-				dict[Id(bName)] = a0Name()
-				continue
-			}
-
-			g.validatePointerConversion(lhs, rhs)
-
-			// RHS is pointer. LHS needs to be converted to a pointer too.
-			if rhs.IsPointer {
-				// c.mapAtoB(a.Name)
-				callerID := g.genShortName().Dot(method.NormalizedName())
-
-				// LHS is a pointer, ensure there is no nil pointer conversion.
-				if lhs.IsPointer {
-					// Output:
-					// var a0Name *outpkg.OutType
-					// if a0.Name != nil {
-					//   res := c.mapAtoB(*a.Name)
-					//   a0Name = &res
-					// }
-					pointers.Add(
-						Var().Add(a0Name()).Op("*").Add(genType(rhs)),
-						If(a0Selection().Op("!=").Id("nil")).Block(
-							Id("res").Op(":=").Add(callerID.Call(Op("*").Add(a0Selection()))),
-							a0Name().Op("=").Op("&").Id("res"),
-						),
-					)
-					// Output:
-					// a0Name: a0Name
-					dict[Id(bName)] = a0Name()
-					continue
-				}
-				// Output:
-				// a0Name := c.mapAtoB(a.Name)
-				pointers.Add(
-					a0Name().Op(":=").Add(callerID.Call(a0Selection())),
-				)
-
-				// Output:
-				// Name: &a0Name
-				dict[Id(bName)] = Op("&").Add(a0Name())
-				continue
-			}
-
-			// Name: c.mapAtoB(a.Name)
-			dict[Id(bName)] = g.genShortName().Dot(method.NormalizedName()).Call(a0Selection())
+			// Output:
+			// bName: a1Name
+			r.Assign()
+			dict[bName()] = a0Selection()
 			continue
 		}
-
-		// Output:
-		// Name: a.Name
-		dict[Id(bName)] = a0Selection()
-		continue
+		// bName: a0Name
+		dict[bName()] = a0Selection()
 	}
-
-	genPrivateMapperMethodsWithError := func(g *Group) {
-		for _, fn := range mappersWithError {
-
-			var (
-				lhs         = fn.In.Type
-				rhs         = fn.Fn.To.Type
-				method      = fn.Fn
-				a0Name      = fn.resolver.Var
-				a0Selection = fn.resolver.Selection
-			)
-			// []*B
-			returnType := Do(func(s *Statement) {
-				if lhs.IsSlice {
-					s.Add(Index())
-				}
-				if lhs.IsPointer {
-					s.Add(Op("*"))
-				}
-			}).Add(genType(rhs))
-
-			if lhs.IsSlice {
-				// aName := make([]B, len(a.Name))
-				g.Add(a0Name().Op(":=").Make(returnType, Len(a0Selection())))
-
-				// The mapper method has error, handle it.
-				if method.Error != nil {
-					// Output:
-					// aName := make([]B, len(a.Name))
-					// for i, each := range a.Name {
-					//   var err error
-					//   aName[i], err = callerFunc(a.Name)
-					//   if err != nil {
-					//     return Bar{}, err
-					//   }
-					// }
-					g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-						Var().Id("err").Id("error"),
-						List(a0Name().Index(Id("i")), Id("err")).Op("=").Add(fn.CallerID()).Call(Id("each")),
-						genReturnOnError(),
-					).Line())
-					continue
-				}
-				// Output:
-				// aName := make([]B, len(a.Name))
-				// for i, each := range a.Name {
-				//   aName[i] := callerFn(a.Name)
-				// }
-				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-					a0Name().Index(Id("i")).Op("=").Add(fn.CallerID()).Call(Id("each")),
-				))
-				continue
-			}
-			// Output:
-			// aName, err := callerFn(a.Name)
-			// if err != nil {
-			//	return Bar{}, err
-			// }
-			g.Add(List(a0Name(), Id("err")).Op(":=").Add(fn.CallerID()).Call(a0Selection()))
-			g.Add(genReturnOnError().Line())
-		}
-	}
-
-	genReturnType := func(s *Statement) {
-		if fn.Error != nil {
-			// (Bar, nil)
-			s.Add(Parens(List(genType(to.Type), Id("error"))))
-		} else {
-			// (Bar)
-			s.Add(genType(to.Type))
-		}
-	}
+	fmt.Printf("%#v\n", dict)
+	fmt.Printf("%#v\n", c)
+	fmt.Println(dict)
 
 	// No error signature for this function, however there are mappers with
 	// errors.
-	if fn.Error == nil && (len(methodsWithError)+len(mappersWithError) > 0) {
-		panic(ErrMissingReturnError(fn))
-	}
+	// TODO:
 
 	// We need to know if the mapper has error signature.
 	g.hasErrorByMapper[fn.NormalizedSignature()] = fn.Error != nil
 
+	returnType := func() *Statement { return internal.GenTypeName(to.Type).Clone() }
+
 	f.Func().
-		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
-		Id(fnName).                                    // mapMainAToMainB
-		Params(
-			Id(argsWithIndex(from.Name, 0)).Add(genType(from.Type)),
-		). // (a A)
-		Do(genReturnType).
+		Params(g.genShortName().Op("*").Id(typeName)).                                // (c *Converter)
+		Id(fnName).                                                                   // mapMainAToMainB
+		Params(Id(argsWithIndex(from.Name, 0)).Add(internal.GenTypeName(from.Type))). // (a A)
+		Do(func(s *Statement) {
+			// Return type must not be pointer.
+			if fn.Error != nil {
+				// Output:
+				// (B, error)
+				s.Add(Parens(List(returnType(), Id("error"))))
+			} else {
+				// Output:
+				// B
+				s.Add(returnType())
+			}
+		}).
 		BlockFunc(func(g *Group) {
-			// Output:
-			// var a0Name *outpkg.OutType
-			// if a0.Name != nil {
-			//   res := methodcall(*a0.Name)
-			//   a0Name = &res
-			// }
-			for _, pointer := range pointers {
-				g.Add(pointer)
-			}
-
-			// Output:
-			// a0Name, err := a0.Name()
-			// if err != nil {
-			//   return B{}, err
-			// }
-			for _, c := range methodsWithError {
-				g.Add(c)
-			}
-
-			// Output:
-			// aName, err := customfuncpkg.CustomFunc(a.Name)
-			// aName, err := c.struct.CustomMethod(a.Name)
-			// aName, err := c.mapAtoB(a.Name)
-			// if err != nil {
-			//	return Bar{}, err
-			// }
-			genPrivateMapperMethodsWithError(g)
-
 			g.Add(ReturnFunc(func(g *Group) {
+				for _, code := range c {
+					g.Add(code)
+				}
 				if fn.Error != nil {
 					// Output:
 					// return Bar{}, nil
-					g.Add(
-						List(
-							genType(to.Type).Values(dict),
-							Id("nil"),
-						),
-					)
+					g.Add(List(returnType().Values(dict), Id("nil")))
 				} else {
 					// Output:
 					// return Bar{}
-					g.Add(
-						genType(to.Type).Values(dict))
+					g.Add(returnType().Values(dict))
 				}
 			}))
 		}).Line()
@@ -1013,53 +460,6 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 				}
 			}).Add(inType),
 		)
-	}
-
-	genReturnType := func(s *Statement) {
-		returnType := Do(func(rs *Statement) {
-			// Output:
-			// []main.B
-			if to.Type.IsSlice {
-				rs.Add(Index())
-			}
-
-			// Output:
-			// []*main.B
-			if to.Type.IsPointer {
-				rs.Add(Op("*"))
-			}
-		}).Add(outType)
-
-		if fn.Error != nil {
-			// (*Bar, error)
-			s.Add(Parens(List(returnType, Id("error"))))
-		} else {
-			// (*Bar)
-			s.Add(returnType)
-		}
-	}
-
-	genReturnOnError := func() *Statement {
-		if fn.Error == nil {
-			panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
-		}
-
-		return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
-			if isSlice || to.Type.IsPointer {
-				// Output:
-				// if err != nil {
-				//   return nil, err
-				// }
-				g.Add(List(Id("nil"), Id("err")))
-				return
-			}
-
-			// Output:
-			// if err != nil {
-			//   return B{}, err
-			// }
-			g.Add(List(outType.Clone().Values(), Id("err")))
-		})).Clone()
 	}
 
 	f.Func().
@@ -1284,11 +684,20 @@ func (g *Generator) validateMethodSignature(lhs mapper.Func, rhs mapper.StructFi
 	}
 }
 
+// validateFunctionSignatureMatch ensures that the conversion from input to
+// output is allowed.
+// Function can receive value/pointer.
+// Function must return a value/pointer with optional error.
+// Function must accept the input signature of the type.
+// Input can be one or many.
+// Function must accept struct only, if the input is many, it will be
+// operated at elem level.
 func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
 	var (
 		in                  = fn.From.Type
 		out                 = fn.To.Type
 		pointerToNonPointer = lhs.IsPointer && !rhs.IsPointer
+		isMany              = fn.From.Type.IsSlice || fn.From.Variadic
 	)
 	// Slice A might not equal A
 	// []A != A
@@ -1307,7 +716,11 @@ func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *ma
 		}
 	}
 	if pointerToNonPointer {
-		panic("mapper: pointer to non-pointer not allowed")
+		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.NormalizedSignature()))
+	}
+
+	if isMany {
+		panic(fmt.Sprintf("mapper: func input must be struct: %s", fn.NormalizedSignature()))
 	}
 }
 

@@ -127,3 +127,11 @@ func (t Tag) IsMethod() bool {
 func (t Tag) IsImported() bool {
 	return t.PkgPath != ""
 }
+
+func (t Tag) Var() string {
+	name := t.Pkg + t.TypeName
+	if t.Pkg == "" {
+		name = LowerFirst(name)
+	}
+	return name
+}
