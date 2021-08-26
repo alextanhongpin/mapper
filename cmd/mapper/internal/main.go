@@ -29,6 +29,9 @@ type Resolver interface {
 }
 
 func argsWithIndex(name string, index int) string {
+	if index < 0 {
+		index = 0
+	}
 	return fmt.Sprintf("%s%d", name, index)
 }
 

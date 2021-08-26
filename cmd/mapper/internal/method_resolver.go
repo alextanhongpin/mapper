@@ -18,9 +18,10 @@ type MethodResolver struct {
 
 func NewMethodResolver(name string, field *mapper.StructField, lhs mapper.Func, rhs mapper.StructField) *MethodResolver {
 	return &MethodResolver{
-		name: name,
-		lhs:  lhs,
-		rhs:  rhs,
+		name:  name,
+		field: field,
+		lhs:   lhs,
+		rhs:   rhs,
 	}
 }
 
@@ -35,18 +36,18 @@ func (f MethodResolver) Rhs() mapper.StructField {
 func (f MethodResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name).Clone()
+	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name)
 }
 
 func (f MethodResolver) RhsVar() *jen.Statement {
 	if f.count == 0 {
 		// Output:
 		// a0.Name()
-		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name).Call().Clone()
+		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name).Call()
 	}
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1)).Clone()
+	return jen.Id(argsWithIndex(f.name, f.count-1))
 }
 
 func (f MethodResolver) LhsType() *jen.Statement {
@@ -57,7 +58,7 @@ func (f MethodResolver) RhsType() *jen.Statement {
 	return GenType(f.rhs.Type)
 }
 
-func (f MethodResolver) Assign() {
+func (f *MethodResolver) Assign() {
 	f.count++
 }
 

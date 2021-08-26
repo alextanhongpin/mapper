@@ -7,48 +7,37 @@ import (
 	. "github.com/dave/jennifer/jen"
 )
 
+// FuncBuilder builds local functions in a function scope.
 type FuncBuilder struct {
 	resolver Resolver
 
-	// The parent scope.
-	fn  *mapper.Func
-	lhs *mapper.Type
-	rhs *mapper.Type
+	// The parent function.
+	fn *mapper.Func
 }
 
-func NewFuncBuilder(fn *mapper.Func, lhs, rhs *mapper.Type) *FuncBuilder {
+func NewFuncBuilder(r Resolver, fn *mapper.Func) *FuncBuilder {
 	return &FuncBuilder{
-		fn:  fn,
-		lhs: lhs,
-		rhs: rhs,
+		resolver: r,
+		fn:       fn,
 	}
 }
 
-func (b *FuncBuilder) genReturnOnError(fn *mapper.Func, lhs, rhs *mapper.Type) *Statement {
+func (b *FuncBuilder) genReturnOnError(fn *mapper.Func) *Statement {
+	// TODO: Turn into error.
 	if fn.Error == nil {
 		panic(fmt.Sprintf("mapper: missing return error for %s", b.fn.PrettySignature()))
 	}
-
 	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
-		if rhs.IsSlice || rhs.IsPointer {
-			// Output:
-			// if err != nil {
-			//   return nil, err
-			// }
-			g.Add(List(Id("nil"), Id("err")))
-			return
-		}
-
 		// Output:
 		// if err != nil {
 		//   return B{}, err
 		// }
-		g.Add(List(GenType(rhs).Clone().Values(), Id("err")))
-	})).Clone()
+		g.Add(List(GenTypeName(fn.To.Type).Values(), Id("err")))
+	}))
 }
 
 func (b *FuncBuilder) GenReturnOnError() *Statement {
-	return b.genReturnOnError(b.fn, b.lhs, b.rhs)
+	return b.genReturnOnError(b.fn)
 }
 
 func (b *FuncBuilder) BuildFuncCall(c *C, fn *mapper.Func, lhs, rhs *mapper.Type) {
@@ -83,8 +72,8 @@ func (b *FuncBuilder) genFuncCall(fn *mapper.Func, lhs, rhs *mapper.Type) *State
 	var (
 		r                    = b.resolver
 		a0Selection          = r.RhsVar
-		requiresInputPointer = !lhs.IsPointer && fn.From.Type.IsPointer
-		requiresInputValue   = lhs.IsPointer && !fn.From.Type.IsPointer
+		requiresInputPointer = fn.RequiresInputPointer(lhs)
+		requiresInputValue   = fn.RequiresInputValue(lhs)
 	)
 
 	// Output:
@@ -109,6 +98,9 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 		a0Selection = r.RhsVar
 		to          = fn.To.Type
 	)
+	defer func() {
+		r.Assign()
+	}()
 
 	//g.validateFunctionSignatureMatch(fn, lhs, rhs)
 
@@ -127,7 +119,6 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 				// 	 a0Name = fn.Fn(a0.Name)  // Funn requires pointer input
 				// 	 a0Name = fn.Fn(*a0.Name) // Func requires value input
 				// }
-				r.Assign()
 				c.Add(Var().Add(a0Name()).Add(GenType(to)))
 				c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
 					a0Name().Op("=").Add(fnCall.Clone())),
@@ -138,7 +129,6 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 			// Output:
 			// a0Name := fn.Fn(&a0.Name) // Func requires pointer input.
 			// a0Name := fn.Fn(a0.Name)  // Func requires value input.
-			r.Assign()
 			c.Add(a0Name().Op(":=").Add(fnCall.Clone()))
 			return
 		}
@@ -208,7 +198,6 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 			//      return nil, err
 			//   }
 			// }
-			r.Assign()
 			c.Add(Var().Add(a0Name()).Add(GenType(to)))
 			c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
 				List(a0Name(), Id("err")).Op("=").Add(b.GenReturnOnError()),
@@ -221,7 +210,6 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 		// if err != nil {
 		//  return nil, err
 		// }
-		r.Assign()
 		c.Add(
 			List(a0Name(), Id("err")).Op("=").Add(fnCall.Clone()),
 			If(Id("err").Op("!=").Id("nil")).Block(b.GenReturnOnError()),

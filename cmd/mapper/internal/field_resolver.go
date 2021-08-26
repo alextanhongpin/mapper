@@ -17,6 +17,7 @@ type FieldResolver struct {
 func NewFieldResolver(name string, lhs, rhs mapper.StructField) *FieldResolver {
 	return &FieldResolver{
 		name: name,
+		lhs:  lhs,
 		rhs:  rhs,
 	}
 }
@@ -32,18 +33,18 @@ func (f FieldResolver) Rhs() mapper.StructField {
 func (f FieldResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name).Clone()
+	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name)
 }
 
 func (f FieldResolver) RhsVar() *jen.Statement {
 	if f.count == 0 {
 		// Output:
 		// a0.Name
-		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name).Clone()
+		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name)
 	}
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1)).Clone()
+	return jen.Id(argsWithIndex(f.name, f.count-1) + f.lhs.Name)
 }
 
 func (f FieldResolver) LhsType() *jen.Statement {
@@ -54,7 +55,7 @@ func (f FieldResolver) RhsType() *jen.Statement {
 	return GenType(f.rhs.Type)
 }
 
-func (f FieldResolver) Assign() {
+func (f *FieldResolver) Assign() {
 	f.count++
 }
 

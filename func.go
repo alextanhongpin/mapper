@@ -66,6 +66,16 @@ func (f *Func) PrettySignature() string {
 	)
 }
 
+// RequiresInputPointer returns true if the input needs to be converted into a pointer.
+func (f *Func) RequiresInputPointer(in *Type) bool {
+	return !in.IsPointer && f.From.Type.IsPointer
+}
+
+// RequiresInputValue returns true if the input needs to be converted into a value.
+func (f *Func) RequiresInputValue(in *Type) bool {
+	return in.IsPointer && !f.From.Type.IsPointer
+}
+
 func fullName(pkgPath, name string) string {
 	if pkgPath == "" {
 		return name
