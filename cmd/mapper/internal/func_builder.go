@@ -309,27 +309,29 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 						//   }
 						//   a1Name = &tmp
 						// }
-						c.Add(Var().Add(a0Name()).Add(GenType(rhs)))
-						c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-							List(Id("tmp"), Id("err")).Op(":=").Add(fnCall.Clone()),
-							b.GenReturnOnError(),
-							a0Name().Op("&").Id("tmp"),
-						))
+						c.Add(
+							Var().Add(a0Name()).Add(GenType(rhs)),
+							If(a0Selection().Op("!=").Id("nil")).Block(
+								List(Id("tmp"), Id("err")).Op(":=").Add(fnCall.Clone()),
+								b.GenReturnOnError(),
+								a0Name().Op("=").Op("&").Id("tmp"),
+							),
+						)
 					} else {
-						// DOES NOT EXPECTS POINTER
+						// DOES NOT EXPECT POINTER
 						//
 						// Output:
-						// var a1Name fn.T
+						// var a1Name b.B
 						// if a0Name != nil {
-						//   a1Name, err = fn.Fn(&a0Name)
+						//   a1Name, err = fn.Fn(*a0Name)
 						//   if err != nil {
 						//      return nil, err
 						//   }
 						// }
 						c.Add(Var().Add(a0Name()).Add(GenType(rhs)))
 						c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-							List(a0Name(), Id("err")).Op("=").Add(b.GenReturnOnError()),
-							If(Id("err").Op("!=").Id("nil")).Block(),
+							List(a0Name(), Id("err")).Op("=").Add(fnCall.Clone()),
+							b.GenReturnOnError(),
 						))
 					}
 				}

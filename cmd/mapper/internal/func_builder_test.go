@@ -102,7 +102,7 @@ func TestGenBuilder(t *testing.T) {
 	})
 
 	t.Run("basic input pointer", func(t *testing.T) {
-		t.Run("ANamePtr=false, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{isInputPointer: true})
 			if diff := cmp.Diff(block(`
 a0Name := stringToString(&a0.Name)
@@ -110,7 +110,7 @@ a0Name := stringToString(&a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{isInputPointer: true, isInputStructFieldPointer: true})
 			if diff := cmp.Diff(block(`
 var a0Name string
@@ -121,7 +121,7 @@ if a0.Name != nil {
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=false, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{isInputPointer: true, isOutputStructFieldPointer: true})
 			if diff := cmp.Diff(block(`
 a0Name := stringToString(&a0.Name)
@@ -129,7 +129,7 @@ a0Name := stringToString(&a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{
 				isInputPointer:             true,
 				isInputStructFieldPointer:  true,
@@ -148,7 +148,7 @@ if a0.Name != nil {
 	})
 
 	t.Run("basic output pointer", func(t *testing.T) {
-		t.Run("ANamePtr=false, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{isOutputPointer: true})
 			if diff := cmp.Diff(block(`
 a0Name := stringToString(a0.Name)
@@ -156,7 +156,7 @@ a0Name := stringToString(a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{isOutputPointer: true, isInputStructFieldPointer: true})
 			if diff := cmp.Diff(block(`
 var a0Name string
@@ -170,7 +170,7 @@ if a0.Name != nil {
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=false, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{isOutputPointer: true, isOutputStructFieldPointer: true})
 			if diff := cmp.Diff(block(`
 a0Name := stringToString(a0.Name)
@@ -178,7 +178,7 @@ a0Name := stringToString(a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{
 				isOutputPointer:            true,
 				isInputStructFieldPointer:  true,
@@ -196,7 +196,7 @@ if a0.Name != nil {
 	})
 
 	t.Run("basic input and output pointer", func(t *testing.T) {
-		t.Run("ANamePtr=false, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{
 				isInputPointer:             true,
 				isOutputPointer:            true,
@@ -209,7 +209,7 @@ a0Name := stringToString(&a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=false", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=false", func(t *testing.T) {
 			code := generate(generateArgs{
 				isInputPointer:             true,
 				isOutputPointer:            true,
@@ -228,7 +228,7 @@ if a0.Name != nil {
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=false, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=false, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{
 				isInputPointer:             true,
 				isOutputPointer:            true,
@@ -241,7 +241,7 @@ a0Name := stringToString(&a0.Name)
 				t.Fatal(diff)
 			}
 		})
-		t.Run("ANamePtr=true, BNamePtr=true", func(t *testing.T) {
+		t.Run("isLHSPointer=true, isRHSPointer=true", func(t *testing.T) {
 			code := generate(generateArgs{
 				isInputPointer:             true,
 				isOutputPointer:            true,
@@ -260,27 +260,163 @@ if a0.Name != nil {
 	})
 
 	t.Run("with error", func(t *testing.T) {
-		code := generate(generateArgs{hasError: true})
-		if diff := cmp.Diff(block(`
+		t.Run("isLHSPointer=false, isRHSPointer=false", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             false,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  false,
+				isOutputStructFieldPointer: false,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
 a0Name, err := stringToString(a0.Name)
 if err != nil {
 	return B{}, err
 }
 `), code); diff != "" {
-			t.Fatal(diff)
-		}
+				t.Fatal(diff)
+			}
+		})
+		t.Run("isLHSPointer=true, isRHSPointer=false", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             false,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  true,
+				isOutputStructFieldPointer: false,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+var a0Name string
+if a0.Name != nil {
+	a0Name, err = stringToString(*a0.Name)
+	if err != nil {
+		return B{}, err
+	}
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
+
+		t.Run("isLHSPointer=false, isRHSPointer=true", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             false,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  false,
+				isOutputStructFieldPointer: true,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+a0Name, err := stringToString(a0.Name)
+if err != nil {
+	return B{}, err
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
+
+		t.Run("isLHSPointer=true, isRHSPointer=true", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             false,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  true,
+				isOutputStructFieldPointer: true,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+var a0Name *string
+if a0.Name != nil {
+	tmp, err := stringToString(*a0.Name)
+	if err != nil {
+		return B{}, err
+	}
+	a0Name = &tmp
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
 	})
 
 	t.Run("with error and input pointer", func(t *testing.T) {
-		code := generate(generateArgs{hasError: true, isInputPointer: true})
-		if diff := cmp.Diff(block(`
+		t.Run("isLHSPointer=false, isRHSPointer=false", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             true,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  false,
+				isOutputStructFieldPointer: false,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
 a0Name, err := stringToString(&a0.Name)
 if err != nil {
 	return B{}, err
 }
 `), code); diff != "" {
-			t.Fatal(diff)
-		}
+				t.Fatal(diff)
+			}
+		})
+		t.Run("isLHSPointer=true, isRHSPointer=false", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             true,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  true,
+				isOutputStructFieldPointer: false,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+var a0Name string
+if a0.Name != nil {
+	a0Name, err = stringToString(a0.Name)
+	if err != nil {
+		return B{}, err
+	}
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
+
+		t.Run("isLHSPointer=false, isRHSPointer=true", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             true,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  false,
+				isOutputStructFieldPointer: true,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+a0Name, err := stringToString(&a0.Name)
+if err != nil {
+	return B{}, err
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
+
+		t.Run("isLHSPointer=true, isRHSPointer=true", func(t *testing.T) {
+			code := generate(generateArgs{
+				isInputPointer:             true,
+				isOutputPointer:            false,
+				isInputStructFieldPointer:  true,
+				isOutputStructFieldPointer: true,
+				hasError:                   true,
+			})
+			if diff := cmp.Diff(block(`
+var a0Name *string
+if a0.Name != nil {
+	tmp, err := stringToString(a0.Name)
+	if err != nil {
+		return B{}, err
+	}
+	a0Name = &tmp
+}
+`), code); diff != "" {
+				t.Fatal(diff)
+			}
+		})
 	})
 
 	t.Run("with error and output pointer", func(t *testing.T) {
