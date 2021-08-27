@@ -4,7 +4,6 @@ package main
 import (
 	examples "github.com/alextanhongpin/mapper/examples"
 	uuid "github.com/google/uuid"
-	"strconv"
 )
 
 type MapperImpl struct{}
@@ -14,38 +13,20 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
+	a0ExternalID := examples.IntToString(a0.ExternalID)
+	a0ID := IntToString(a0.ID)
 	a0Remarks := NullStringToPointer(a0.Remarks)
-	a0IDs := make([]uuid.UUID, len(a0.IDs))
-	for i, each := range a0.IDs {
-		var err error
-		a0IDs[i], err = uuid.Parse(each)
-		if err != nil {
-			return B{}, err
-		}
-	}
-
-	a0Nums := make([]int, len(a0.Nums))
-	for i, each := range a0.Nums {
-		var err error
-		a0Nums[i], err = strconv.Atoi(each)
-		if err != nil {
-			return B{}, err
-		}
-	}
-
 	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
 	if err != nil {
 		return B{}, err
 	}
-
 	a0UUID, err := uuid.Parse(a0.UUID)
 	if err != nil {
 		return B{}, err
 	}
-
 	return B{
-		ExternalID:   examples.IntToString(a0.ExternalID),
-		ID:           IntToString(a0.ID),
+		ExternalID:   a0ExternalID,
+		ID:           a0ID,
 		IDs:          a0IDs,
 		Nums:         a0Nums,
 		Remarks:      a0Remarks,
@@ -59,12 +40,12 @@ func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomF
 	if err != nil {
 		return CustomField{}, err
 	}
-
 	return CustomField{Num: c0Num}, nil
 }
 
 func (m *MapperImpl) mapMainCToMainD(c0 C) D {
-	return D{ID: IntToString(c0.ID)}
+	c0ID := IntToString(c0.ID)
+	return D{ID: c0ID}
 }
 
 func (m *MapperImpl) AtoB(a0 A) (B, error) {
@@ -78,7 +59,7 @@ func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, 
 func (m *MapperImpl) ConvertImportedFuncPointer(c0 examples.CustomField) (*CustomField, error) {
 	res, err := m.mapExamplesCustomFieldToMainCustomField(c0)
 	if err != nil {
-		return nil, err
+		return &CustomField{}, err
 	}
 	return &res, nil
 }
@@ -93,7 +74,7 @@ func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
 		var err error
 		res[i], err = m.mapMainAToMainB(each)
 		if err != nil {
-			return nil, err
+			return B{}, err
 		}
 	}
 	return res, nil
@@ -107,19 +88,19 @@ func (m *MapperImpl) SliceCtoD(c0 []C) []D {
 	return res
 }
 
-func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
+func (m *MapperImpl) VariadicAtoB(a0 []A) ([]B, error) {
 	res := make([]B, len(a0))
 	for i, each := range a0 {
 		var err error
 		res[i], err = m.mapMainAToMainB(each)
 		if err != nil {
-			return nil, err
+			return B{}, err
 		}
 	}
 	return res, nil
 }
 
-func (m *MapperImpl) VariadicCtoD(c0 ...C) []D {
+func (m *MapperImpl) VariadicCtoD(c0 []C) []D {
 	res := make([]D, len(c0))
 	for i, each := range c0 {
 		res[i] = m.mapMainCToMainD(each)

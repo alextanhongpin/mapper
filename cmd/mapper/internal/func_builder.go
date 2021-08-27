@@ -1,8 +1,6 @@
 package internal
 
 import (
-	"fmt"
-
 	"github.com/alextanhongpin/mapper"
 	. "github.com/dave/jennifer/jen"
 )
@@ -22,22 +20,8 @@ func NewFuncBuilder(r Resolver, fn *mapper.Func) *FuncBuilder {
 	}
 }
 
-func (b *FuncBuilder) genReturnOnError(fn *mapper.Func) *Statement {
-	// TODO: Turn into error.
-	if fn.Error == nil {
-		panic(fmt.Sprintf("mapper: missing return error for %s", b.fn.PrettySignature()))
-	}
-	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
-		// Output:
-		// if err != nil {
-		//   return B{}, err
-		// }
-		g.Add(List(GenTypeName(fn.To.Type).Values(), Id("err")))
-	}))
-}
-
 func (b *FuncBuilder) GenReturnOnError() *Statement {
-	return b.genReturnOnError(b.fn)
+	return GenReturnTypeNameOnError(*b.fn)
 }
 
 func (b *FuncBuilder) BuildFuncCall(c *C, fn *mapper.Func, lhs, rhs *mapper.Type) {
@@ -288,10 +272,10 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 						// }
 						c.Add(Var().Add(a0Name()).Add(GenType(rhs)))
 						c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-							List(Id("tmp"), Id("err")).Op("=").Add(fnCall.Clone()),
+							List(Id("tmp"), Id("err")).Op(":=").Add(fnCall.Clone()),
 							b.GenReturnOnError(),
 							If(Id("tmp").Op("!=").Id("nil")).Block(
-								a0Selection().Op("=").Op("*").Id("tmp"),
+								a0Name().Op("=").Op("*").Id("tmp"),
 							),
 						))
 					}

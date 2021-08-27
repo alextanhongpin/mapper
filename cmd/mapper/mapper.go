@@ -163,8 +163,6 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		parentHasError = fn.Error != nil
 	)
 
-	funcBuilder := internal.NewFuncBuilder(&fn, from.Type, to.Type)
-
 	// Loop through all the target keys.
 	var keys []string
 	for key := range to.Type.StructFields {
@@ -201,28 +199,26 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			}
 			// Just an ordinary LHS struct field. Noice.
 			resolvers = append(resolvers, internal.NewFieldResolver(from.Name, field, to))
-			continue
+		} else {
+			// Has a LHS struct field, but calls the method instead.
+			// The difference is there's no custom `map` tag to tell us what method it
+			// is. Rather, we infer from the name of the RHS field.
+			//
+			// Input:
+			// type Lhs struct{
+			//   name string
+			// }
+			//
+			// func (l Lhs) Name() string {}
+			//
+			// LHS method can also return error as the second argument.
+			structMethods := mapper.ExtractNamedMethods(from.Type.T)
+			if method, ok := structMethods[key]; ok {
+				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
+			} else {
+				panic(fmt.Sprintf("mapper: cannot map field %q for %s", key, to.Type.Signature()))
+			}
 		}
-
-		// Has a LHS struct field, but calls the method instead.
-		// The difference is there's no custom `map` tag to tell us what method it
-		// is. Rather, we infer from the name of the RHS field.
-		//
-		// Input:
-		// type Lhs struct{
-		//   name string
-		// }
-		//
-		// func (l Lhs) Name() string {}
-		//
-		// LHS method can also return error as the second argument.
-		structMethods := mapper.ExtractNamedMethods(from.Type.T)
-		if method, ok := structMethods[key]; ok {
-			resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
-			continue
-		}
-
-		panic(fmt.Sprintf("mapper: cannot map field %q for %s", key, to.Type.Signature()))
 	}
 
 	var c internal.C
@@ -239,6 +235,8 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			a0Name      = r.LhsVar
 			a0Selection = r.RhsVar
 		)
+
+		funcBuilder := internal.NewFuncBuilder(r, &fn)
 
 		// IS METHOD CALL.
 		if r.IsMethod() {
@@ -359,26 +357,9 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		// PRIVATE MAPPER.
 
 		// RETURN VALUE.
-		if requiresOutputPointer() {
-			// Since this could be a method call, we still need to assign to another
-			// variable before converting to pointer.
-			// Output:
-			// a1Name := &a0Name
-			r.Assign()
-			c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
-
-			// Output:
-			// bName: a1Name
-			r.Assign()
-			dict[bName()] = a0Selection()
-			continue
-		}
 		// bName: a0Name
 		dict[bName()] = a0Selection()
 	}
-	fmt.Printf("%#v\n", dict)
-	fmt.Printf("%#v\n", c)
-	fmt.Println(dict)
 
 	// No error signature for this function, however there are mappers with
 	// errors.
@@ -406,10 +387,10 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			}
 		}).
 		BlockFunc(func(g *Group) {
+			for _, code := range c {
+				g.Add(code)
+			}
 			g.Add(ReturnFunc(func(g *Group) {
-				for _, code := range c {
-					g.Add(code)
-				}
 				if fn.Error != nil {
 					// Output:
 					// return Bar{}, nil
@@ -433,6 +414,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	//   return c.mapMainAtoMainB(a.Field)
 	// }
 
+	// TODO: REPLACE WITH FUNC
 	this := g
 	from, to := fn.From, fn.To
 	if (from.Variadic || from.Type.IsSlice) != to.Type.IsSlice {
@@ -441,31 +423,32 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	isSlice := from.Type.IsSlice
 
 	// main.A
-	inType := genType(from.Type)
+	inType := func() *Statement {
+		return internal.GenType(from.Type)
+	}
 
 	// main.B
-	outType := genType(to.Type)
+	outType := func() *Statement {
+		return internal.GenType(to.Type)
+	}
 
 	genInputType := func(g *Group) {
 		g.Add(
-			Id(argsWithIndex(from.Name, 0)).Do(func(s *Statement) {
-				if !from.Variadic && from.Type.IsSlice {
-					s.Add(Index())
-				}
-				if from.Type.IsPointer {
-					s.Add(Op("*"))
-				}
-				if from.Variadic {
-					s.Add(Op("..."))
-				}
-			}).Add(inType),
+			Id(argsWithIndex(from.Name, 0)).Add(inType()),
 		)
+	}
+
+	genReturnType := func() *Statement {
+		if fn.Error != nil {
+			return Parens(List(outType(), Id("error")))
+		}
+		return outType()
 	}
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
 		Id(fn.Name).ParamsFunc(genInputType).          // Convert(a *A)
-		Do(genReturnType).                             // (*B, error)
+		Add(genReturnType()).                          // (*B, error)
 		BlockFunc(func(g *Group) {
 			a0 := func() *Statement {
 				return Id(argsWithIndex(from.Name, 0)).Clone()
@@ -479,7 +462,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 
 			if isSlice {
 				// res := make([]B, len(a))
-				g.Add(Id("res").Op(":=").Make(List(Index().Add(outType), Len(a0()))))
+				g.Add(Id("res").Op(":=").Make(List(outType(), Len(a0()))))
 				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0())).BlockFunc(func(g *Group) {
 					// If the private method does not have error, exit.
 					if mapperHasError {
@@ -495,7 +478,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 							Id("res").Index(Id("i")),
 							Id("err"),
 						).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
-						g.Add(genReturnOnError())
+						g.Add(internal.GenReturnTypeOnError(fn))
 					} else {
 						// Output:
 						// for i, each := range a {
@@ -541,7 +524,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 					//   return nil, err
 					// }
 					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0())))
-					g.Add(genReturnOnError())
+					g.Add(internal.GenReturnTypeOnError(fn))
 				} else {
 					// Output:
 					// res := c.mapMainAToMainB(*a0)
@@ -568,7 +551,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 					//   return nil, err
 					// }
 					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0()))
-					g.Add(genReturnOnError())
+					g.Add(internal.GenReturnTypeOnError(fn))
 				} else {
 					// Output:
 					// res := c.mapMainAToMainB(a)
@@ -774,13 +757,6 @@ func buildType(t *mapper.Type) func(*Statement) {
 			s.Add(Op("*"))
 		}
 	}
-}
-
-func genType(T *mapper.Type) *Statement {
-	if T.PkgPath != "" {
-		return Qual(T.PkgPath, T.Type)
-	}
-	return Id(T.Type)
 }
 
 func ErrConversion(lhs, rhs *mapper.Type) error {
