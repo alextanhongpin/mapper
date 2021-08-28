@@ -102,6 +102,7 @@ func (g *Generator) usesKeys() []string {
 
 func (g *Generator) genStruct(f *jen.File) {
 	// Output:
+	//
 	// type Converter struct {
 	//   customInterface interfacepkg.CustomInterface
 	//   customStruct    *structpkg.CustomStruct
@@ -122,6 +123,7 @@ func (g *Generator) genStruct(f *jen.File) {
 
 func (g *Generator) genConstructor(f *jen.File) {
 	// Output:
+	//
 	// func NewConverter(customStruct *structpkg.CustomStruct, customInterface interfacepkg.CustomInterface) *Converter {
 	//   return &Converter{
 	//     structpkgCustomStruct: customStruct,
@@ -238,8 +240,20 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 		funcBuilder := internal.NewFuncBuilder(r, &fn)
 
-		// IS METHOD CALL.
+		assign := func() {
+			// There could be pointer to value conversion or vice versa.
+			if lhsType.IsPointer && !rhsType.IsPointer {
+				panic("mapper: pointer to value conversion not allowed")
+			}
+			if !lhsType.IsPointer && rhsType.IsPointer {
+				dict[bName()] = Op("&").Add(a0Selection())
+			} else {
+				dict[bName()] = a0Selection()
+			}
+		}
+
 		if r.IsMethod() {
+			// IS METHOD
 			method := r.Lhs().(mapper.Func)
 			hasError := method.Error != nil
 			lhsType = method.To.Type
@@ -256,7 +270,8 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				if !parentHasError {
 					panic(ErrMissingReturnError(fn))
 				}
-				// Output
+				// Output:
+				//
 				// a0Name, err := a0Name.Name()
 				// if err != nil { ...  }
 				c.Add(List(a0Name(), Id("err")).Op(":=").Add(a0Selection()))
@@ -267,20 +282,26 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				c.Add(a0Name().Op(":=").Add(a0Selection()))
 			}
 			// Don't exit yet, there might be another step of transformation.
+			r.Assign()
 		} else {
-			// IS STRUCT FIELD.
+			// IS NOT METHOD | IS STRUCT FIELD
 			lhs := r.Lhs().(mapper.StructField)
 			lhsType = lhs.Type
 
 			// No tags and equal types means we can assign the field directly.
-			if !hasTag && lhsType.Equal(rhsType) {
-				// Output:
-				// Name: a0Name.Name
-				dict[bName()] = a0Selection()
+			if !hasTag && lhsType.EqualElem(rhsType) {
+				if lhsType.Equal(rhsType) {
+					// Output:
+					//
+					// Name: a0Name.Name
+					dict[bName()] = a0Selection()
+				} else {
+					assign()
+				}
 				continue
 			}
 			// There are probably further conversion for this field.
-		} // END OF if r.IsMethod()
+		}
 
 		// METHOD OR FIELD RESOLVED.
 
@@ -350,15 +371,33 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				// struct name with the package name.
 				g.uses[tag.Var()] = *typ
 
-				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()), &method, lhsType, rhsType)
+				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()).Dot(method.Name), &method, lhsType, rhsType)
+				lhsType = method.To.Type
 			}
-		} // END OF TAG: IS METHOD
+		}
 
-		// PRIVATE MAPPER.
+		if !lhsType.EqualElem(rhsType) {
+			// Check if there is a private mapper with the signature that accepts LHS
+			// and returns RHS .
+			signature := buildFnSignature(lhsType, rhsType)
+			if _, ok := g.mappers[signature]; !ok {
+				panic(ErrConversion(lhsType, rhsType))
+			}
 
+			var method *mapper.Func
+			for _, met := range g.opt.Type.InterfaceMethods {
+				if met.NormalizedSignature() == signature {
+					method = &met
+					break
+				}
+			}
+			// Method found.
+			funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(method.Name), method, lhsType, rhsType)
+			lhsType = method.To.Type
+		}
 		// RETURN VALUE.
 		// bName: a0Name
-		dict[bName()] = a0Selection()
+		assign()
 	}
 
 	// No error signature for this function, however there are mappers with

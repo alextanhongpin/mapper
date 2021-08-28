@@ -44,6 +44,15 @@ func (t Type) Equal(other *Type) bool {
 	return t.Signature() == other.Signature()
 }
 
+// EqualElem checks if the type a.A, regardless of whether
+// it is pointer, slice etc, matches type b.B.
+// The elem is only considered the same if they reside in
+// the same pkg.
+// So a.A is not the same as b.A even if both A has same types.
+func (t Type) EqualElem(other *Type) bool {
+	return t.Type == other.Type && t.PkgPath == other.PkgPath
+}
+
 // NewType recursively checks for the field type.
 func NewType(typ types.Type) *Type {
 	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool

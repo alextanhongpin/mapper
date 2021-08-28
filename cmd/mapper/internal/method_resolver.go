@@ -47,7 +47,7 @@ func (f MethodResolver) RhsVar() *jen.Statement {
 	}
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1))
+	return jen.Id(argsWithIndex(f.name, f.count-1) + f.lhs.Name)
 }
 
 func (f MethodResolver) LhsType() *jen.Statement {

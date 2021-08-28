@@ -42,10 +42,10 @@ func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs,
 	var (
 		r                    = b.resolver
 		a0Selection          = r.RhsVar
-		requiresInputPointer = !lhs.IsPointer && method.From.Type.IsPointer
-		requiresInputValue   = lhs.IsPointer && !method.From.Type.IsPointer
+		requiresInputPointer = method.RequiresInputPointer(lhs)
+		requiresInputValue   = method.RequiresInputValue(lhs)
 	)
-	return prefix.Clone().Dot(method.Name).Call(Do(func(s *Statement) {
+	return prefix.Clone().Call(Do(func(s *Statement) {
 		if requiresInputPointer {
 			// Output:
 			// fn.Fn(&a0Name)
@@ -55,7 +55,13 @@ func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs,
 			// fn.Fn(*a0Name)
 			s.Add(Op("*"))
 		}
-	}).Add(a0Selection()))
+
+		if lhs.IsSlice {
+			s.Add(Id("each"))
+		} else {
+			s.Add(a0Selection())
+		}
+	}))
 }
 
 func (b *FuncBuilder) genFuncCall(fn *mapper.Func, lhs, rhs *mapper.Type) *Statement {
@@ -113,7 +119,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 				if outputIsPointer {
 					// OUTPUT IS POINTER
 					if !expectsPointer {
-						// DOES NOT EXPECT POINTER
+						// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER
 						//
 						// Output:
 						// var a0Name fn.T
@@ -133,7 +139,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 							),
 						)
 					} else {
-						// EXPECTS POINTER
+						// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS POINTER > EXPECTS POINTER
 						// Output:
 						// var a0Name *fn.T
 						// if a0.Name != nil {
@@ -147,9 +153,8 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 						)
 					}
 				} else {
-					// OUTPUT IS NOT POINTER
 					if expectsPointer {
-						// EXPECTS POINTER
+						// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS NOT POINTER > EXPECTS POINTER
 						//
 						// Output:
 						// var a0Name *fn.T
@@ -166,7 +171,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 						)
 
 					} else {
-						// DOES NOT EXPECT POINTER
+						// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS NOT POINTER > DOES NOT EXPECT POINTER
 						//
 						// Output:
 						// var a0Name fn.T
@@ -183,7 +188,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					}
 				}
 			} else {
-				// INPUT IS NOT POINTER
+				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER
 				//
 				// Output:
 				// a0Name := fn.Fn(&a0.Name) // Func requires pointer input.
@@ -191,7 +196,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 				c.Add(a0Name().Op(":=").Add(fnCall()))
 			}
 		} else {
-			// IS SLICE
+			// NO ERROR > IS SLICE
 			if inputIsPointer {
 				// IS SLICE > INPUT IS POINTER
 				//
@@ -347,7 +352,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					}
 				}
 			} else {
-				// INPUT IS NOT POINTER
+				// HAS ERROR > IS NOT SLICE > INPUT IS NOT POINTER
 				// Output:
 				// a2Name, err := fn.Fn(a1Name)
 				// if err != nil {
