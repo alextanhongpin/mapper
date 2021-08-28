@@ -26,6 +26,17 @@ func NewMethodResolver(name string, field *mapper.StructField, lhs mapper.Func, 
 }
 
 func (f MethodResolver) Lhs() interface{} {
+	// For the first invocation, this will be a method call. Subsequent calls will be field.
+	// a0Name := a0.Name()
+	// a1Name := a0Name
+	if f.count == 0 {
+		return f.lhs
+	}
+
+	if f.field != nil {
+		return *f.field
+	}
+
 	return f.lhs
 }
 

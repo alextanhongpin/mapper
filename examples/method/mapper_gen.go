@@ -10,13 +10,14 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0status := StatusToString(a0.status)
+	a0Status := a0.Status()
+	a1Status := StatusToString(a0Status)
 	return B{
 		Bool:   a0.Bool(),
 		ID:     a0.ID(),
 		Map:    a0.Map(),
 		Slice:  a0.Slice(),
-		Status: a0status,
+		Status: a1Status,
 		Str:    a0.Str(),
 		Time:   a0.Time(),
 	}
