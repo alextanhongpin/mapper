@@ -81,7 +81,5 @@ func (m MapperImpl) AtoB(a A) B {
 
 ## TODO
 
-- [ ] Add ignore tags
-- [ ] Add variadic (?) support
-- [ ] Name resolution when not unique
-- [ ] replace all pointer receiver name `c` with `ShortName(name)`
+- [ ] better error handling
+- [ ] handle exported and private fields
