@@ -107,10 +107,9 @@ func (m *MapperImpl) SliceAtoB(a0A []A) ([]B, error) {
 }
 
 func (m *MapperImpl) SliceCtoD(c0C []C) []D {
-	var c1C []D
-	for _, each := range c0C {
-		tmp := m.mapMainCToMainD(each)
-		c1C = append(c1C, tmp)
+	c1C := make([]D, len(c0C))
+	for i, each := range c0C {
+		c1C[i] = m.mapMainCToMainD(each)
 	}
 	return c1C
 }
@@ -128,10 +127,9 @@ func (m *MapperImpl) VariadicAtoB(a0A []A) ([]B, error) {
 }
 
 func (m *MapperImpl) VariadicCtoD(c0C []C) []D {
-	var c1C []D
-	for _, each := range c0C {
-		tmp := m.mapMainCToMainD(each)
-		c1C = append(c1C, tmp)
+	c1C := make([]D, len(c0C))
+	for i, each := range c0C {
+		c1C[i] = m.mapMainCToMainD(each)
 	}
 	return c1C
 }

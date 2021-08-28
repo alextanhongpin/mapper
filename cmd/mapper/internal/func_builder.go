@@ -239,25 +239,14 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					// IS SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER
 					//
 					// Output:
-					// var a0Name []b.B  // Expects value.
-					// var a0Name []*b.B // Expects pointer.
-					// for _, each := range a0.Name {
-					//   tmp := fn.Fn(&each)
-					//   a0Name = append(a0Name, &tmp) // Expects output pointer for value result.
-					//   a0Name = append(a0Name, tmp)  // Expects output pointer for pointer result.
-					//   a0Name = append(a0Name, *tmp) // Expects output value for pointer result.
+					// a0Name := make([]b.B, a0.Name)
+					// for i, each := range a0.Name {
+					//   a0Name[i] = fn.Fn(&each)
 					// }
 					c.Add(
-						Var().Add(a0Name()).Add(GenType(rhs)),
-						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							Id("tmp").Op(":=").Add(fnCall()),
-							a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
-								if outputIsPointer && !expectsPointer {
-									s.Add(Op("*"))
-								} else if !outputIsPointer && expectsPointer {
-									s.Add(Op("&"))
-								}
-							}).Id("tmp")),
+						a0Name().Op(":=").Make(Add(GenType(rhs)), Len(a0Selection())),
+						For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
+							a0Name().Index(Id("i")).Op("=").Add(fnCall()),
 						),
 					)
 				}
