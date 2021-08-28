@@ -10,10 +10,10 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0NonPtrToPointer := m.CtoDPointer(a0.NonPtrToPointer)
+	a0NonPtrToPointer := m.CPointerToDPointer(&a0.NonPtrToPointer)
 	var a0Ptr *D
 	if a0.Ptr != nil {
-		a0Ptr = m.CtoDPointer(*a0.Ptr)
+		a0Ptr = m.CPointerToDPointer(a0.Ptr)
 	}
 	return B{
 		Bool:            a0.Bool,

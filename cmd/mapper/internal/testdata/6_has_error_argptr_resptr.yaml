@@ -1,0 +1,60 @@
+args:
+  error: true
+  argPtr: true
+  resPtr: true
+  inPtr: false
+  outPtr: false
+expected: |
+  a0Name, err := stringToString(&a0.Name)
+  if err != nil {
+    return B{}, err
+  }
+---
+args:
+  error: true
+  argPtr: true
+  resPtr: true
+  inPtr: true
+  outPtr: false
+  skip: true
+  reason: cannot return non-pointer for input value
+expected: |
+  var a0Name string
+  if a0.Name != nil {
+    // If the result produce nil, then a0Name will become
+    // empty string, which is not supposed to happen.
+    tmp, err := stringToString(*a0.Name)
+    if err != nil {
+      return B{}, err
+    }
+    if tmp != nil {
+      a0Name = *tmp
+    }
+  }
+---
+args:
+  error: true
+  argPtr: true
+  resPtr: true
+  inPtr: false
+  outPtr: true
+expected: |
+  a0Name, err := stringToString(&a0.Name)
+  if err != nil {
+    return B{}, err
+  }
+---
+args:
+  error: true
+  argPtr: true
+  resPtr: true
+  inPtr: true
+  outPtr: true
+expected: |
+  var a0Name *string
+  if a0.Name != nil {
+    a0Name, err = stringToString(a0.Name)
+    if err != nil {
+      return B{}, err
+    }
+  }

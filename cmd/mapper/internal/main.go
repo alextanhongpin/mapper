@@ -19,7 +19,6 @@ type Resolver interface {
 	RhsType() *jen.Statement
 
 	Tag() *mapper.Tag
-	//Mapper() interface{}
 
 	// Increases the assignment count
 	Assign()
