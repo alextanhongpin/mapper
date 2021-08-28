@@ -65,62 +65,73 @@ func (m *MapperImpl) mapMainCToMainD(c0 C) D {
 	return D{ID: c0ID}
 }
 
-func (m *MapperImpl) AtoB(a0 A) (B, error) {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) AtoB(a0A A) (B, error) {
+	a1A, err := m.mapMainAToMainB(a0A)
+	if err != nil {
+		return B{}, err
+	}
+	return a1A, nil
 }
 
-func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, error) {
-	return m.mapExamplesCustomFieldToMainCustomField(c0)
+func (m *MapperImpl) ConvertImportedFunc(c0CustomField examples.CustomField) (CustomField, error) {
+	c1CustomField, err := m.mapExamplesCustomFieldToMainCustomField(c0CustomField)
+	if err != nil {
+		return CustomField{}, err
+	}
+	return c1CustomField, nil
 }
 
-func (m *MapperImpl) ConvertImportedFuncPointer(c0 examples.CustomField) (*CustomField, error) {
-	res, err := m.mapExamplesCustomFieldToMainCustomField(c0)
+func (m *MapperImpl) ConvertImportedFuncPointer(c0CustomField examples.CustomField) (*CustomField, error) {
+	c1CustomField, err := m.mapExamplesCustomFieldToMainCustomField(c0CustomField)
 	if err != nil {
 		return nil, err
 	}
-	return &res, nil
+	return &c1CustomField, nil
 }
 
-func (m *MapperImpl) CtoD(c0 C) D {
-	return m.mapMainCToMainD(c0)
+func (m *MapperImpl) CtoD(c0C C) D {
+	c1C := m.mapMainCToMainD(c0C)
+	return c1C
 }
 
-func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		var err error
-		res[i], err = m.mapMainAToMainB(each)
+func (m *MapperImpl) SliceAtoB(a0A []A) ([]B, error) {
+	var a1A []B
+	for _, each := range a0A {
+		tmp, err := m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
+		a1A = append(a1A, tmp)
 	}
-	return res, nil
+	return a1A, nil
 }
 
-func (m *MapperImpl) SliceCtoD(c0 []C) []D {
-	res := make([]D, len(c0))
-	for i, each := range c0 {
-		res[i] = m.mapMainCToMainD(each)
+func (m *MapperImpl) SliceCtoD(c0C []C) []D {
+	var c1C []D
+	for _, each := range c0C {
+		tmp := m.mapMainCToMainD(each)
+		c1C = append(c1C, tmp)
 	}
-	return res
+	return c1C
 }
 
-func (m *MapperImpl) VariadicAtoB(a0 []A) ([]B, error) {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		var err error
-		res[i], err = m.mapMainAToMainB(each)
+func (m *MapperImpl) VariadicAtoB(a0A []A) ([]B, error) {
+	var a1A []B
+	for _, each := range a0A {
+		tmp, err := m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
+		a1A = append(a1A, tmp)
 	}
-	return res, nil
+	return a1A, nil
 }
 
-func (m *MapperImpl) VariadicCtoD(c0 []C) []D {
-	res := make([]D, len(c0))
-	for i, each := range c0 {
-		res[i] = m.mapMainCToMainD(each)
+func (m *MapperImpl) VariadicCtoD(c0C []C) []D {
+	var c1C []D
+	for _, each := range c0C {
+		tmp := m.mapMainCToMainD(each)
+		c1C = append(c1C, tmp)
 	}
-	return res
+	return c1C
 }

@@ -58,6 +58,20 @@ func (f *Func) NormalizedSignature() string {
 	)
 }
 
+func (f *Func) Normalize() *Func {
+	from := NewFuncArg(f.From.Name, f.From.Type.Normalize(), false)
+	to := NewFuncArg(f.To.Name, f.To.Type.Normalize(), false)
+	return &Func{
+		Name:    f.Name,
+		Pkg:     f.Pkg,
+		PkgPath: f.PkgPath,
+		From:    from,
+		To:      to,
+		Error:   f.Error,
+		Fn:      f.Fn,
+	}
+}
+
 func (f *Func) PrettySignature() string {
 	return fmt.Sprintf("func %s(%s) %s",
 		f.Name,

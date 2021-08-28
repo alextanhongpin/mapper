@@ -101,6 +101,7 @@ func ExtractStructFields(structType *types.Struct) map[string]StructField {
 
 		fields[key] = StructField{
 			Name:     field.Name(),
+			Pkg:      field.Pkg().Name(),
 			PkgPath:  field.Pkg().Path(),
 			Exported: field.Exported(),
 			Tag:      tag,

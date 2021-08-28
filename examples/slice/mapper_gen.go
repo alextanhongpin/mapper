@@ -29,38 +29,43 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) B {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) AtoB(a0A A) B {
+	a1A := m.mapMainAToMainB(a0A)
+	return a1A
 }
 
-func (m *MapperImpl) ExternalAtoB(a0 []examples.A) []examples.B {
-	res := make([]examples.B, len(a0))
-	for i, each := range a0 {
-		res[i] = m.mapExamplesAToExamplesB(each)
+func (m *MapperImpl) ExternalAtoB(a0A []examples.A) []examples.B {
+	var a1A []examples.B
+	for _, each := range a0A {
+		tmp := m.mapExamplesAToExamplesB(each)
+		a1A = append(a1A, tmp)
 	}
-	return res
+	return a1A
 }
 
-func (m *MapperImpl) SliceAtoB(a0 []A) []B {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		res[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) SliceAtoB(a0A []A) []B {
+	var a1A []B
+	for _, each := range a0A {
+		tmp := m.mapMainAToMainB(each)
+		a1A = append(a1A, tmp)
 	}
-	return res
+	return a1A
 }
 
-func (m *MapperImpl) Variadic(a0 []A) []B {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		res[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) Variadic(a0A []A) []B {
+	var a1A []B
+	for _, each := range a0A {
+		tmp := m.mapMainAToMainB(each)
+		a1A = append(a1A, tmp)
 	}
-	return res
+	return a1A
 }
 
-func (m *MapperImpl) VariadicError(a0 []A) ([]B, error) {
-	res := make([]B, len(a0))
-	for i, each := range a0 {
-		res[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) VariadicError(a0A []A) ([]B, error) {
+	var a1A []B
+	for _, each := range a0A {
+		tmp := m.mapMainAToMainB(each)
+		a1A = append(a1A, tmp)
 	}
-	return res, nil
+	return a1A, nil
 }

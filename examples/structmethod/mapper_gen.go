@@ -24,6 +24,10 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	}, nil
 }
 
-func (m *MapperImpl) AtoB(a0 A) (B, error) {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) AtoB(a0A A) (B, error) {
+	a1A, err := m.mapMainAToMainB(a0A)
+	if err != nil {
+		return B{}, err
+	}
+	return a1A, nil
 }

@@ -10,10 +10,10 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0NonPtrToPointer := m.CPointerToDPointer(&a0.NonPtrToPointer)
+	a0NonPtrToPointer := m.CtoDPointer(a0.NonPtrToPointer)
 	var a0Ptr *D
 	if a0.Ptr != nil {
-		a0Ptr = m.CPointerToDPointer(a0.Ptr)
+		a0Ptr = m.CtoDPointer(*a0.Ptr)
 	}
 	return B{
 		Bool:            a0.Bool,
@@ -43,29 +43,31 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) *B {
-	res := m.mapMainAToMainB(a0)
-	return &res
+func (m *MapperImpl) AtoB(a0A A) *B {
+	a1A := m.mapMainAToMainB(a0A)
+	return &a1A
 }
 
-func (m *MapperImpl) CPointerToDPointer(c0 *C) *D {
-	if c0 == nil {
-		return nil
+func (m *MapperImpl) CPointerToDPointer(c0C *C) *D {
+	var c1C *D
+	if c0C != nil {
+		tmp := m.mapMainCToMainD(*c0C)
+		c1C = &tmp
 	}
-	res := m.mapMainCToMainD(*c0)
-	return &res
+	return c1C
 }
 
-func (m *MapperImpl) CtoD(c0 C) D {
-	return m.mapMainCToMainD(c0)
+func (m *MapperImpl) CtoD(c0C C) D {
+	c1C := m.mapMainCToMainD(c0C)
+	return c1C
 }
 
-func (m *MapperImpl) CtoDPointer(c0 C) *D {
-	res := m.mapMainCToMainD(c0)
-	return &res
+func (m *MapperImpl) CtoDPointer(c0C C) *D {
+	c1C := m.mapMainCToMainD(c0C)
+	return &c1C
 }
 
-func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
-	res := m.mapExamplesAToExamplesB(a0)
-	return &res
+func (m *MapperImpl) ExternalAtoB(a0A examples.A) *examples.B {
+	a1A := m.mapExamplesAToExamplesB(a0A)
+	return &a1A
 }

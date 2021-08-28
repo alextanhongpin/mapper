@@ -227,13 +227,11 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	dict := make(Dict)
 	for _, r := range resolvers {
 		var (
-			lhsType *mapper.Type
-			tag     = r.Tag()
-			rhsType = r.Rhs().Type
-			hasTag  = tag != nil
-			bName   = func() *jen.Statement {
-				return Id(r.Rhs().Name)
-			}
+			lhsType     *mapper.Type
+			tag         = r.Tag()
+			rhsType     = r.Rhs().Type
+			hasTag      = tag != nil
+			bName       = func() *jen.Statement { return Id(r.Rhs().Name) }
 			a0Name      = r.LhsVar
 			a0Selection = r.RhsVar
 		)
@@ -446,162 +444,87 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	var (
-		typeName      = g.opt.TypeName
-		lhs           = fn.From.Type
-		rhs           = fn.To.Type
-		lhsType       = func() *Statement { return internal.GenType(lhs) }
-		rhsType       = func() *Statement { return internal.GenType(rhs) }
-		many          = lhs.IsSlice || fn.From.Variadic
-		argName       = func() *Statement { return Id(argsWithIndex(fn.From.Name, 0)).Add(lhsType()) }
-		genReturnType = func() *Statement {
-			if fn.Error != nil {
-				return Parens(List(rhsType(), Id("error")))
-			}
-			return rhsType()
-		}
-		genReturnValue = func() *Statement { return internal.GenReturnTypeOnError(fn) }
+		typeName = g.opt.TypeName
+		lhsType  = fn.From.Type
+		rhsType  = fn.To.Type
 	)
-	// Output:
-	// func (c *Converter) Convert(a A) (B, error) {
-	//   return c.mapMainAtoMainB(a.Field)
-	// }
 
 	// TODO: REPLACE WITH FUNC
 	this := g
-	from, to := fn.From, fn.To
+
+	lhs := mapper.StructField{
+		Name:     lhsType.Type,
+		Pkg:      lhsType.Pkg,
+		PkgPath:  lhsType.PkgPath,
+		Exported: true,
+		Tag:      nil,
+		Type:     lhsType.Normalize(),
+	}
+	rhs := mapper.StructField{
+		Name:     rhsType.Type,
+		Pkg:      rhsType.Pkg,
+		PkgPath:  rhsType.PkgPath,
+		Exported: true,
+		Tag:      nil,
+		Type:     rhsType.Normalize(),
+	}
+
+	var c internal.C
+	res := internal.NewFieldResolver(fn.From.Name, lhs, rhs)
+	arg := res.LhsVar()
+	res.Assign()
+	funcBuilder := internal.NewFuncBuilder(res, &fn)
 
 	// TODO: Separate validation.
-	if many != rhs.IsSlice {
-		panic("mapper: slice to no-slice and vice versa is not allowed")
+	//if many != rhs.IsSlice {
+	//panic("mapper: slice to no-slice and vice versa is not allowed")
+	//}
+
+	mapperHasError := g.hasErrorByMapper[fn.NormalizedSignature()]
+	if mapperHasError && fn.Error == nil {
+		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+	}
+
+	genReturnType := func() *Statement {
+		if fn.Error != nil {
+			return Parens(List(internal.GenType(fn.To.Type), Id("error")))
+		}
+		return internal.GenType(fn.To.Type)
+	}
+
+	genReturnValue := func() *jen.Statement {
+
+		// There could be pointer to value conversion or vice versa.
+		if lhsType.IsPointer && !rhsType.IsPointer {
+			panic("mapper: pointer to value conversion not allowed")
+		}
+		if !lhsType.IsPointer && rhsType.IsPointer {
+			return Op("&").Add(res.RhsVar())
+		}
+		return res.RhsVar()
 	}
 
 	f.Func().
-		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
-		Id(fn.Name).Params(argName()).                 // Convert(a *A)
-		Add(genReturnType()).                          // (*B, error)
+		Params(g.genShortName().Op("*").Id(typeName)).               // (c *Converter)
+		Id(fn.Name).Params(arg.Add(internal.GenType(fn.From.Type))). // Convert(a *A)
+		Add(genReturnType()).                                        // (*B, error)
 		BlockFunc(func(g *Group) {
-			a0Name := func() *Statement {
-				return Id(argsWithIndex(from.Name, 0)).Clone()
-			}
-			// If one of the mappers return error, but the actual function definition
-			// does not, something is wrong.
-			mapperHasError := this.hasErrorByMapper[fn.NormalizedSignature()]
-			if mapperHasError && fn.Error == nil {
-				panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+			normFn := fn.Normalize()
+			if !mapperHasError {
+				normFn.Error = nil
 			}
 
-			if many {
-				// res := make([]B, len(a))
-				g.Add(Id("res").Op(":=").Make(List(rhsType(), Len(a0Name()))))
-				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Name())).BlockFunc(func(g *Group) {
-					// If the private method does not have error, exit.
-					if mapperHasError {
-						// Output:
-						// for i, each := range a {
-						//   var err error
-						//   res[i], err = c.mapMainAToMainB(each)
-						//   if err != nil { return err }
-						// }
+			funcBuilder.BuildMethodCall(&c, this.genShortName().Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
 
-						g.Add(Var().Id("err").Id("error"))
-						g.Add(List(
-							Id("res").Index(Id("i")),
-							Id("err"),
-						).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
-						g.Add(genReturnValue())
-					} else {
-						// Output:
-						// for i, each := range a {
-						//   res[i] = c.mapMainAToMainB(each)
-						// }
-						g.Add(Id("res").Index(Id("i")).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
-					}
-				}))
-
-				if fn.Error != nil {
-					// return res, nil
-					g.Add(Return(List(Id("res"), Id("nil"))))
-					return
-				}
-				// return res
-				g.Add(Return(Id("res")))
-				return
+			for _, code := range c {
+				g.Add(code)
 			}
 
-			if from.Type.IsPointer && to.Type.IsPointer {
-				g.Add(If(a0Name()).Op("==").Id("nil").Block(
-					ReturnFunc(func(g *Group) {
-						if fn.Error != nil {
-							// Output:
-							// if a0Name == nil {
-							//   return nil, nil
-							// }
-							g.Add(List(Id("nil"), Id("nil")))
-						} else {
-							// Output:
-							// if a0Name == nil {
-							//   return nil
-							// }
-							g.Add(Id("nil"))
-						}
-					}),
-				))
-
-				if mapperHasError {
-					// Output:
-					// res, err := c.mapMainAToMainB(*a0Name)
-					// if err != nil {
-					//   return nil, err
-					// }
-					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0Name())))
-					g.Add(genReturnValue())
-				} else {
-					// Output:
-					// res := c.mapMainAToMainB(*a0Name)
-					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0Name()))
-				}
-
-				if fn.Error != nil {
-					// return &res, nil
-					g.Add(Return(List(Op("&").Id("res")), Id("nil")))
-					return
-				}
-
-				// Output:
-				// return &res
-				g.Add(Return(Op("&").Id("res")))
-				return
+			if fn.Error != nil {
+				g.Add(Return(List(genReturnValue(), Id("nil"))))
+			} else {
+				g.Add(Return(genReturnValue()))
 			}
-
-			if to.Type.IsPointer {
-				if mapperHasError {
-					// Output:
-					// res, err := c.mapMainAToMainB(a)
-					// if err != nil {
-					//   return nil, err
-					// }
-					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0Name()))
-					g.Add(genReturnValue())
-				} else {
-					// Output:
-					// res := c.mapMainAToMainB(a)
-					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0Name())
-				}
-
-				if fn.Error != nil {
-					// return &res, nil
-					g.Add(Return(List(Op("&").Id("res")), Id("nil")))
-					return
-				}
-				// Output:
-				// return &res
-				g.Add(Return(Op("&").Id("res")))
-				return
-			}
-
-			// Output:
-			// return c.mapMainAtoMainB(a0Name)
-			g.Add(Return(this.genShortName().Dot(fn.NormalizedName()).Call(a0Name())))
 		}).Line()
 }
 
@@ -733,7 +656,7 @@ func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *ma
 	}
 
 	if isMany {
-		panic(fmt.Sprintf("mapper: func input must be struct: %s", fn.NormalizedSignature()))
+		panic(fmt.Sprintf("mapper: func input must be struct: %s, provided %s", fn.NormalizedSignature(), lhs.Signature()))
 	}
 }
 

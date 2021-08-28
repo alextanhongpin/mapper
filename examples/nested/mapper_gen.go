@@ -42,15 +42,23 @@ func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
 	}, nil
 }
 
-func (m *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
-	return m.mapExamplesBookToMainBook(b0)
+func (m *MapperImpl) ConvertBook(b0Book examples.Book) (Book, error) {
+	b1Book, err := m.mapExamplesBookToMainBook(b0Book)
+	if err != nil {
+		return Book{}, err
+	}
+	return b1Book, nil
 }
 
-func (m *MapperImpl) ConvertPrice(p0 examples.Price) *Price {
-	res := m.mapExamplesPriceToMainPrice(p0)
-	return &res
+func (m *MapperImpl) ConvertPrice(p0Price examples.Price) *Price {
+	p1Price := m.mapExamplesPriceToMainPrice(p0Price)
+	return &p1Price
 }
 
-func (m *MapperImpl) ConvertUser(u0 examples.User) (User, error) {
-	return m.mapExamplesUserToMainUser(u0)
+func (m *MapperImpl) ConvertUser(u0User examples.User) (User, error) {
+	u1User, err := m.mapExamplesUserToMainUser(u0User)
+	if err != nil {
+		return User{}, err
+	}
+	return u1User, nil
 }

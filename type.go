@@ -23,6 +23,16 @@ type Type struct {
 	T                types.Type
 }
 
+func (t Type) Normalize() *Type {
+	return &Type{
+		Type:         t.Type,
+		Pkg:          t.Pkg,
+		PkgPath:      t.PkgPath,
+		StructFields: t.StructFields,
+		T:            t.T,
+	}
+}
+
 // Signature is used to compare if two types are equal.
 func (t Type) Signature() string {
 	// *github.com/alextanhongpin/yourpkg/Bar
@@ -135,19 +145,4 @@ func NewType(typ types.Type) *Type {
 		InterfaceMethods: interfaceMethods,
 		T:                typ,
 	}
-}
-
-// StructField for the example below.
-//type Foo struct {
-//  Name sql.NullString `json:"name"
-//}
-type StructField struct {
-	Name string `example:"Name"`
-	// Useful when the output directory doesn't match the existing ones.
-	PkgPath  string // e.g. github.com/your-org/yourpkg
-	PkgName  string // e.g. yourpkg
-	Exported bool   // e.g. true
-	Tag      *Tag   // e.g. `map:"RenameField,CustomFunction"`
-	*Type
-	*types.Var
 }

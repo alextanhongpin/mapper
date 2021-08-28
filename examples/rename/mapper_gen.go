@@ -15,6 +15,7 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) B {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) AtoB(a0A A) B {
+	a1A := m.mapMainAToMainB(a0A)
+	return a1A
 }

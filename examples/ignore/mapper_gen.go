@@ -23,10 +23,12 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	}
 }
 
-func (m *MapperImpl) AtoB(a0 A) B {
-	return m.mapMainAToMainB(a0)
+func (m *MapperImpl) AtoB(a0A A) B {
+	a1A := m.mapMainAToMainB(a0A)
+	return a1A
 }
 
-func (m *MapperImpl) ExternalAtoB(a0 examples.A) examples.B {
-	return m.mapExamplesAToExamplesB(a0)
+func (m *MapperImpl) ExternalAtoB(a0A examples.A) examples.B {
+	a1A := m.mapExamplesAToExamplesB(a0A)
+	return a1A
 }
