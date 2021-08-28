@@ -4,6 +4,7 @@ package main
 import (
 	examples "github.com/alextanhongpin/mapper/examples"
 	uuid "github.com/google/uuid"
+	"strconv"
 )
 
 type MapperImpl struct{}
@@ -15,6 +16,22 @@ func NewMapperImpl() *MapperImpl {
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	a0ExternalID := examples.IntToString(a0.ExternalID)
 	a0ID := IntToString(a0.ID)
+	var a0IDs []uuid.UUID
+	for _, each := range a0.IDs {
+		tmp, err := uuid.Parse(each)
+		if err != nil {
+			return B{}, err
+		}
+		a0IDs = append(a0IDs, tmp)
+	}
+	var a0Nums []int
+	for _, each := range a0.Nums {
+		tmp, err := strconv.Atoi(each)
+		if err != nil {
+			return B{}, err
+		}
+		a0Nums = append(a0Nums, tmp)
+	}
 	a0Remarks := NullStringToPointer(a0.Remarks)
 	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
 	if err != nil {
@@ -59,7 +76,7 @@ func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, 
 func (m *MapperImpl) ConvertImportedFuncPointer(c0 examples.CustomField) (*CustomField, error) {
 	res, err := m.mapExamplesCustomFieldToMainCustomField(c0)
 	if err != nil {
-		return &CustomField{}, err
+		return nil, err
 	}
 	return &res, nil
 }
@@ -74,7 +91,7 @@ func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
 		var err error
 		res[i], err = m.mapMainAToMainB(each)
 		if err != nil {
-			return B{}, err
+			return nil, err
 		}
 	}
 	return res, nil
@@ -94,7 +111,7 @@ func (m *MapperImpl) VariadicAtoB(a0 []A) ([]B, error) {
 		var err error
 		res[i], err = m.mapMainAToMainB(each)
 		if err != nil {
-			return B{}, err
+			return nil, err
 		}
 	}
 	return res, nil

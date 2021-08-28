@@ -247,7 +247,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// No tags, no errors, and equal types means we can assign the field directly.
 			if !hasTag && !hasError && lhsType.Equal(rhsType) {
 				// Output:
-				// Name: a0.Name()
+				// Name: a0Name.Name()
 				dict[bName()] = a0Selection()
 				continue
 			}
@@ -257,13 +257,13 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					panic(ErrMissingReturnError(fn))
 				}
 				// Output
-				// a0Name, err := a0.Name()
+				// a0Name, err := a0Name.Name()
 				// if err != nil { ...  }
 				c.Add(List(a0Name(), Id("err")).Op(":=").Add(a0Selection()))
 				c.Add(funcBuilder.GenReturnOnError())
 			} else {
 				// Output:
-				// a0Name := a0.Name()
+				// a0Name := a0Name.Name()
 				c.Add(a0Name().Op(":=").Add(a0Selection()))
 			}
 			// Don't exit yet, there might be another step of transformation.
@@ -275,7 +275,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// No tags and equal types means we can assign the field directly.
 			if !hasTag && lhsType.Equal(rhsType) {
 				// Output:
-				// Name: a0.Name
+				// Name: a0Name.Name
 				dict[bName()] = a0Selection()
 				continue
 			}
@@ -407,7 +407,20 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	var (
-		typeName = g.opt.TypeName
+		typeName      = g.opt.TypeName
+		lhs           = fn.From.Type
+		rhs           = fn.To.Type
+		lhsType       = func() *Statement { return internal.GenType(lhs) }
+		rhsType       = func() *Statement { return internal.GenType(rhs) }
+		many          = lhs.IsSlice || fn.From.Variadic
+		argName       = func() *Statement { return Id(argsWithIndex(fn.From.Name, 0)).Add(lhsType()) }
+		genReturnType = func() *Statement {
+			if fn.Error != nil {
+				return Parens(List(rhsType(), Id("error")))
+			}
+			return rhsType()
+		}
+		genReturnValue = func() *Statement { return internal.GenReturnTypeOnError(fn) }
 	)
 	// Output:
 	// func (c *Converter) Convert(a A) (B, error) {
@@ -417,40 +430,18 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	// TODO: REPLACE WITH FUNC
 	this := g
 	from, to := fn.From, fn.To
-	if (from.Variadic || from.Type.IsSlice) != to.Type.IsSlice {
+
+	// TODO: Separate validation.
+	if many != rhs.IsSlice {
 		panic("mapper: slice to no-slice and vice versa is not allowed")
-	}
-	isSlice := from.Type.IsSlice
-
-	// main.A
-	inType := func() *Statement {
-		return internal.GenType(from.Type)
-	}
-
-	// main.B
-	outType := func() *Statement {
-		return internal.GenType(to.Type)
-	}
-
-	genInputType := func(g *Group) {
-		g.Add(
-			Id(argsWithIndex(from.Name, 0)).Add(inType()),
-		)
-	}
-
-	genReturnType := func() *Statement {
-		if fn.Error != nil {
-			return Parens(List(outType(), Id("error")))
-		}
-		return outType()
 	}
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
-		Id(fn.Name).ParamsFunc(genInputType).          // Convert(a *A)
+		Id(fn.Name).Params(argName()).                 // Convert(a *A)
 		Add(genReturnType()).                          // (*B, error)
 		BlockFunc(func(g *Group) {
-			a0 := func() *Statement {
+			a0Name := func() *Statement {
 				return Id(argsWithIndex(from.Name, 0)).Clone()
 			}
 			// If one of the mappers return error, but the actual function definition
@@ -460,10 +451,10 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 				panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
 			}
 
-			if isSlice {
+			if many {
 				// res := make([]B, len(a))
-				g.Add(Id("res").Op(":=").Make(List(outType(), Len(a0()))))
-				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0())).BlockFunc(func(g *Group) {
+				g.Add(Id("res").Op(":=").Make(List(rhsType(), Len(a0Name()))))
+				g.Add(For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Name())).BlockFunc(func(g *Group) {
 					// If the private method does not have error, exit.
 					if mapperHasError {
 						// Output:
@@ -478,7 +469,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 							Id("res").Index(Id("i")),
 							Id("err"),
 						).Op("=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Id("each")))
-						g.Add(internal.GenReturnTypeOnError(fn))
+						g.Add(genReturnValue())
 					} else {
 						// Output:
 						// for i, each := range a {
@@ -499,17 +490,17 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			}
 
 			if from.Type.IsPointer && to.Type.IsPointer {
-				g.Add(If(a0()).Op("==").Id("nil").Block(
+				g.Add(If(a0Name()).Op("==").Id("nil").Block(
 					ReturnFunc(func(g *Group) {
 						if fn.Error != nil {
 							// Output:
-							// if a0 == nil {
+							// if a0Name == nil {
 							//   return nil, nil
 							// }
 							g.Add(List(Id("nil"), Id("nil")))
 						} else {
 							// Output:
-							// if a0 == nil {
+							// if a0Name == nil {
 							//   return nil
 							// }
 							g.Add(Id("nil"))
@@ -519,16 +510,16 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 
 				if mapperHasError {
 					// Output:
-					// res, err := c.mapMainAToMainB(*a0)
+					// res, err := c.mapMainAToMainB(*a0Name)
 					// if err != nil {
 					//   return nil, err
 					// }
-					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0())))
-					g.Add(internal.GenReturnTypeOnError(fn))
+					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0Name())))
+					g.Add(genReturnValue())
 				} else {
 					// Output:
-					// res := c.mapMainAToMainB(*a0)
-					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0()))
+					// res := c.mapMainAToMainB(*a0Name)
+					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(Op("*").Add(a0Name()))
 				}
 
 				if fn.Error != nil {
@@ -550,12 +541,12 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 					// if err != nil {
 					//   return nil, err
 					// }
-					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0()))
-					g.Add(internal.GenReturnTypeOnError(fn))
+					g.Add(List(Id("res"), Id("err")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0Name()))
+					g.Add(genReturnValue())
 				} else {
 					// Output:
 					// res := c.mapMainAToMainB(a)
-					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0())
+					g.Add(Id("res")).Op(":=").Add(this.genShortName()).Dot(fn.NormalizedName()).Call(a0Name())
 				}
 
 				if fn.Error != nil {
@@ -570,8 +561,8 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			}
 
 			// Output:
-			// return c.mapMainAtoMainB(a0)
-			g.Add(Return(this.genShortName().Dot(fn.NormalizedName()).Call(a0())))
+			// return c.mapMainAtoMainB(a0Name)
+			g.Add(Return(this.genShortName().Dot(fn.NormalizedName()).Call(a0Name())))
 		}).Line()
 }
 

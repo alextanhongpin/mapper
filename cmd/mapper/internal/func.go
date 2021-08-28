@@ -8,10 +8,11 @@ import (
 )
 
 func GenReturnTypeOnError(fn mapper.Func) *Statement {
-	// TODO: Turn into error.
+	// TODO: Turn into bool.
 	if fn.Error == nil {
 		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
 	}
+
 	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
 		// Output:
 		// if err != nil {
@@ -19,14 +20,10 @@ func GenReturnTypeOnError(fn mapper.Func) *Statement {
 		// }
 		out := fn.To.Type
 		g.Add(List(Do(func(s *Statement) {
-			if out.IsStruct {
-				if out.IsPointer {
-					s.Add(Op("&").Add(GenTypeName(fn.To.Type))).Values()
-				} else {
-					s.Add(GenTypeName(fn.To.Type)).Values()
-				}
-			} else if out.IsPointer || out.IsSlice {
+			if out.IsPointer || out.IsSlice {
 				s.Add(Id("nil"))
+			} else {
+				s.Add(GenTypeName(fn.To.Type)).Values()
 			}
 		}), Id("err")))
 	}))
