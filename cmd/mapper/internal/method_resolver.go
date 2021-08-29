@@ -11,12 +11,12 @@ type MethodResolver struct {
 	name string
 	// If the custom `map` tag is not defined, this will be nil.
 	field *mapper.StructField
-	lhs   mapper.Func
+	lhs   *mapper.Func
 	rhs   mapper.StructField
 	count int
 }
 
-func NewMethodResolver(name string, field *mapper.StructField, lhs mapper.Func, rhs mapper.StructField) *MethodResolver {
+func NewMethodResolver(name string, field *mapper.StructField, lhs *mapper.Func, rhs mapper.StructField) *MethodResolver {
 	return &MethodResolver{
 		name:  name,
 		field: field,

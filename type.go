@@ -18,7 +18,7 @@ type Type struct {
 	MapKey           *Type
 	MapValue         *Type
 	StructFields     map[string]StructField
-	InterfaceMethods map[string]Func
+	InterfaceMethods map[string]*Func
 	ObjPkg           *types.Package
 	T                types.Type
 	E                types.Type
@@ -30,7 +30,7 @@ func NewType(fullType types.Type) *Type {
 	var fieldPkgPath, fieldPkg, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
-	var interfaceMethods map[string]Func
+	var interfaceMethods map[string]*Func
 	var objPkg *types.Package
 	typ := fullType
 

@@ -5,30 +5,30 @@ import (
 	"go/types"
 )
 
-func ExtractNamedMethods(T types.Type) map[string]Func {
+func ExtractNamedMethods(T types.Type) map[string]*Func {
 	t, ok := T.(*types.Named)
 	if !ok {
 		panic(fmt.Sprintf("mapper: %s is not a named typed", T))
 	}
 
-	result := make(map[string]Func)
+	result := make(map[string]*Func)
 	for i := 0; i < t.NumMethods(); i++ {
 		method := t.Method(i)
 		if !method.Exported() {
 			continue
 		}
 		fn := NewFunc(method)
-		result[fn.Name] = *fn
+		result[fn.Name] = fn
 	}
 
 	return result
 }
 
-func ExtractInterfaceMethods(in *types.Interface) map[string]Func {
-	result := make(map[string]Func)
+func ExtractInterfaceMethods(in *types.Interface) map[string]*Func {
+	result := make(map[string]*Func)
 	for i := 0; i < in.NumMethods(); i++ {
 		fn := NewFunc(in.Method(i))
-		result[fn.Name] = *fn
+		result[fn.Name] = fn
 	}
 	return result
 }

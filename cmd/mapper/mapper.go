@@ -157,7 +157,7 @@ func (g *Generator) genConstructor(f *jen.File) {
 
 // genPrivateMethod generates the most basic, struct A to struct B conversion
 // without pointers, slice etc.
-func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
+func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	var (
 		f              = Null()
 		typeName       = g.opt.TypeName
@@ -165,6 +165,7 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 		from           = fn.From
 		to             = fn.To
 		parentHasError = fn.Error
+		hasError       = false
 	)
 
 	// Loop through all the target keys.
@@ -238,12 +239,14 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 			a0Selection = r.RhsVar
 		)
 
-		funcBuilder := internal.NewFuncBuilder(r, &fn)
+		funcBuilder := internal.NewFuncBuilder(r, fn)
 
 		if r.IsMethod() {
 			// IS METHOD
-			method := r.Lhs().(mapper.Func)
-			hasError := method.Error
+			method := r.Lhs().(*mapper.Func)
+			if method.Error {
+				hasError = method.Error
+			}
 			lhsType = method.To.Type
 
 			// No tags, no errors, and equal types means we can assign the field directly.
@@ -255,9 +258,6 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 			}
 
 			if hasError {
-				if !parentHasError {
-					panic(ErrMissingReturnError(fn))
-				}
 				// Output:
 				//
 				// a0Name, err := a0Name.Name()
@@ -309,9 +309,8 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 			if tag.IsFunc() {
 				lhs := r.Lhs().(mapper.StructField)
 				fn := g.loadTagFunction(&lhs)
-
-				if fn.Error && !parentHasError {
-					panic(ErrMissingReturnError(*fn))
+				if fn.Error {
+					hasError = fn.Error
 				}
 
 				// Build the func.
@@ -342,7 +341,7 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 				}
 
 				typ := mapper.NewType(obj.Type())
-				var method mapper.Func
+				var method *mapper.Func
 				switch {
 				case typ.IsInterface:
 					method = typ.InterfaceMethods[tag.Func]
@@ -352,16 +351,16 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 				default:
 					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
 				}
-				g.validateFunctionSignatureMatch(&method, lhsType, rhsType)
-				if method.Error && !parentHasError {
-					panic(ErrMissingReturnError(fn))
+				g.validateFunctionSignatureMatch(method, lhsType, rhsType)
+				if method.Error {
+					hasError = method.Error
 				}
 
 				// To avoid different packages having same struct name, prefix the
 				// struct name with the package name.
 				g.uses[tag.Var()] = *typ
 
-				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()).Dot(method.Name), &method, lhsType, rhsType)
+				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()).Dot(method.Name), method, lhsType, rhsType)
 				lhsType = method.To.Type
 			}
 		}
@@ -378,6 +377,8 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 			for _, met := range g.opt.Type.InterfaceMethods {
 				if met.Normalize().Signature() == signature {
 					method = met.Normalize()
+					// Private mapper does not have error signature.
+					// Therefor, we have to manually assign them.
 					method.Error = g.hasErrorByMapper[signature]
 					break
 				}
@@ -393,34 +394,29 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 
 	// No error signature for this function, however there are mappers with
 	// errors.
-	// TODO:
+	if hasError && !parentHasError {
+		panic(ErrMissingReturnError(fn))
+	}
 
-	// We need to know if the mapper has error signature.
-	g.hasErrorByMapper[fn.Normalize().Signature()] = fn.Error
+	// Since our private mapper does not have knowledge of error,
+	// we need to set it manually.
+	g.hasErrorByMapper[fn.Normalize().Signature()] = hasError
+
 	returnType := func() *Statement { return internal.GenTypeName(to.Type).Clone() }
+	normFn := fn.Normalize()
+	normFn.Error = hasError
 
 	f.Func().
-		Params(g.genShortName().Op("*").Id(typeName)).                                // (c *Converter)
-		Id(fnName).                                                                   // mapMainAToMainB
-		Params(Id(argsWithIndex(from.Name, 0)).Add(internal.GenTypeName(from.Type))). // (a A)
-		Do(func(s *Statement) {
-			// Return type must not be pointer.
-			if fn.Error {
-				// Output:
-				// (B, error)
-				s.Add(Parens(List(returnType(), Id("error"))))
-			} else {
-				// Output:
-				// B
-				s.Add(returnType())
-			}
-		}).
+		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
+		Id(fnName).                                    // mapMainAToMainB
+		Params(internal.GenInputType(normFn)).         // (a A)
+		Add(internal.GenReturnType(normFn)).
 		BlockFunc(func(g *Group) {
 			for _, code := range c {
 				g.Add(code)
 			}
 			g.Add(ReturnFunc(func(g *Group) {
-				if fn.Error {
+				if normFn.Error {
 					// Output:
 					// return Bar{}, nil
 					g.Add(List(returnType().Values(dict), Id("nil")))
@@ -434,7 +430,7 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 	return f
 }
 
-func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
+func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 	var (
 		typeName = g.opt.TypeName
 		lhsType  = fn.From.Type
@@ -465,7 +461,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	res := internal.NewFieldResolver(fn.From.Name, lhs, rhs)
 	arg := res.LhsVar()
 	res.Assign()
-	funcBuilder := internal.NewFuncBuilder(res, &fn)
+	funcBuilder := internal.NewFuncBuilder(res, fn)
 
 	mapperHasError := g.hasErrorByMapper[fn.Normalize().Signature()]
 	if mapperHasError && !fn.Error {
@@ -509,7 +505,7 @@ func argsWithIndex(name string, index int) string {
 	return fmt.Sprintf("%s%d", name, index)
 }
 
-func (g *Generator) validateToAndFromStruct(fn mapper.Func) {
+func (g *Generator) validateToAndFromStruct(fn *mapper.Func) {
 	lhs, rhs := fn.From.Type, fn.To.Type
 	g.validateFieldMapping(lhs, rhs)
 
@@ -574,7 +570,7 @@ func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
 
 // validateMethodSignature checks if the lhs.method() returns the right
 // signature required by rhs.
-func (g *Generator) validateMethodSignature(lhs mapper.Func, rhs mapper.StructField) {
+func (g *Generator) validateMethodSignature(lhs *mapper.Func, rhs mapper.StructField) {
 	if lhs.From != nil {
 		panic(fmt.Sprintf("mapper: struct method should not have arguments %s.%s(%s %s)", lhs.Pkg, lhs.Name, lhs.From.Name, lhs.From.Type.Type))
 	}
@@ -669,7 +665,7 @@ func ErrMismatchType(lhs, rhs *mapper.Type) error {
 	)
 }
 
-func ErrMissingReturnError(fn mapper.Func) error {
+func ErrMissingReturnError(fn *mapper.Func) error {
 	return fmt.Errorf("mapper: missing return err for %s", fn.Signature())
 }
 

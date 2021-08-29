@@ -9,7 +9,7 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
+func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) Book {
 	b0Price := m.mapExamplesPriceToMainPrice(b0.Price)
 	b1Price := &b0Price
 	return Book{
@@ -17,7 +17,7 @@ func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
 		Price:  b1Price,
 		Title:  b0.Title,
 		UserID: b0.UserID,
-	}, nil
+	}
 }
 
 func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
@@ -27,27 +27,20 @@ func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 	}
 }
 
-func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
-	var u0Books []Book
-	for _, each := range u0.Books {
-		tmp, err := m.mapExamplesBookToMainBook(each)
-		if err != nil {
-			return User{}, err
-		}
-		u0Books = append(u0Books, tmp)
+func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) User {
+	u0Books := make([]Book, len(u0.Books))
+	for i, each := range u0.Books {
+		u0Books[i] = m.mapExamplesBookToMainBook(each)
 	}
 	return User{
 		Books: u0Books,
 		ID:    u0.ID,
 		Name:  u0.Name,
-	}, nil
+	}
 }
 
 func (m *MapperImpl) ConvertBook(b0Book examples.Book) (Book, error) {
-	b1Book, err := m.mapExamplesBookToMainBook(b0Book)
-	if err != nil {
-		return Book{}, err
-	}
+	b1Book := m.mapExamplesBookToMainBook(b0Book)
 	return b1Book, nil
 }
 
@@ -58,9 +51,6 @@ func (m *MapperImpl) ConvertPrice(p0Price examples.Price) *Price {
 }
 
 func (m *MapperImpl) ConvertUser(u0User examples.User) (User, error) {
-	u1User, err := m.mapExamplesUserToMainUser(u0User)
-	if err != nil {
-		return User{}, err
-	}
+	u1User := m.mapExamplesUserToMainUser(u0User)
 	return u1User, nil
 }

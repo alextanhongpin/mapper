@@ -6,6 +6,7 @@ import (
 	"go/types"
 	"path"
 	"strings"
+	"sync"
 )
 
 type FuncArg struct {
@@ -32,6 +33,9 @@ type Func struct {
 	To      *FuncArg
 	Error   bool
 	Fn      *types.Func // Store the original
+
+	once sync.Once
+	Norm *Func
 }
 
 func NewFunc(fn *types.Func) *Func {
@@ -114,7 +118,10 @@ func (f *Func) Signature() string {
 }
 
 func (f *Func) Normalize() *Func {
-	return NewFunc(NormFunc(f.NormalizedName(), f.Fn))
+	f.once.Do(func() {
+		f.Norm = NewFunc(NormFunc(f.NormalizedName(), f.Fn))
+	})
+	return f.Norm
 }
 
 // RequiresInputPointer returns true if the input needs to be converted into a pointer.
