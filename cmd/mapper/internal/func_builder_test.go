@@ -108,11 +108,6 @@ func generate(args generateArgs) string {
 	structA := newStructType("A", isInputPointer)
 	structB := newStructType("B", isOutputPointer)
 
-	var customFuncErr *mapper.Type
-	if hasError {
-		customFuncErr = &mapper.Type{Type: "error"}
-	}
-
 	fb := internal.NewFuncBuilder(
 		internal.NewFieldResolver("a", structA.StructFields[field], structB.StructFields[field]),
 		// The parent func.
@@ -123,7 +118,7 @@ func generate(args generateArgs) string {
 			Name:  "mapAtoB",
 			From:  mapper.NewFuncArg("a", structA, false),
 			To:    mapper.NewFuncArg("b", structB, false),
-			Error: customFuncErr, // Parent must have error too.
+			Error: hasError, // Parent must have error too.
 		},
 	)
 
@@ -132,7 +127,7 @@ func generate(args generateArgs) string {
 		Name:  "stringToString",
 		From:  mapper.NewFuncArg("a", &mapper.Type{Type: "string", IsPointer: isArgPointer}, false),
 		To:    mapper.NewFuncArg("b", &mapper.Type{Type: "string", IsPointer: isResultPointer}, false),
-		Error: customFuncErr,
+		Error: hasError,
 	}
 
 	var c internal.C

@@ -162,7 +162,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		fnName         = fn.NormalizedName()
 		from           = fn.From
 		to             = fn.To
-		parentHasError = fn.Error != nil
+		parentHasError = fn.Error
 	)
 
 	// Loop through all the target keys.
@@ -253,7 +253,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		if r.IsMethod() {
 			// IS METHOD
 			method := r.Lhs().(mapper.Func)
-			hasError := method.Error != nil
+			hasError := method.Error
 			lhsType = method.To.Type
 
 			// No tags, no errors, and equal types means we can assign the field directly.
@@ -316,7 +316,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				lhs := r.Lhs().(mapper.StructField)
 				fn := g.loadTagFunction(&lhs)
 
-				if fn.Error != nil {
+				if fn.Error {
 					// TODO: FIXME
 					if !parentHasError {
 						panic(ErrMissingReturnError(*fn))
@@ -361,7 +361,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
 				}
 				g.validateFunctionSignatureMatch(&method, lhsType, rhsType)
-				if method.Error != nil && !parentHasError {
+				if method.Error && !parentHasError {
 					panic(ErrMissingReturnError(fn))
 				}
 
@@ -403,8 +403,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	// TODO:
 
 	// We need to know if the mapper has error signature.
-	g.hasErrorByMapper[fn.NormalizedSignature()] = fn.Error != nil
-
+	g.hasErrorByMapper[fn.NormalizedSignature()] = fn.Error
 	returnType := func() *Statement { return internal.GenTypeName(to.Type).Clone() }
 
 	f.Func().
@@ -413,7 +412,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		Params(Id(argsWithIndex(from.Name, 0)).Add(internal.GenTypeName(from.Type))). // (a A)
 		Do(func(s *Statement) {
 			// Return type must not be pointer.
-			if fn.Error != nil {
+			if fn.Error {
 				// Output:
 				// (B, error)
 				s.Add(Parens(List(returnType(), Id("error"))))
@@ -428,7 +427,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				g.Add(code)
 			}
 			g.Add(ReturnFunc(func(g *Group) {
-				if fn.Error != nil {
+				if fn.Error {
 					// Output:
 					// return Bar{}, nil
 					g.Add(List(returnType().Values(dict), Id("nil")))
@@ -481,12 +480,12 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	//}
 
 	mapperHasError := g.hasErrorByMapper[fn.NormalizedSignature()]
-	if mapperHasError && fn.Error == nil {
+	if mapperHasError && !fn.Error {
 		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
 	}
 
 	genReturnType := func() *Statement {
-		if fn.Error != nil {
+		if fn.Error {
 			return Parens(List(internal.GenType(fn.To.Type), Id("error")))
 		}
 		return internal.GenType(fn.To.Type)
@@ -511,7 +510,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 		BlockFunc(func(g *Group) {
 			normFn := fn.Normalize()
 			if !mapperHasError {
-				normFn.Error = nil
+				normFn.Error = false
 			}
 
 			funcBuilder.BuildMethodCall(&c, this.genShortName().Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
@@ -520,7 +519,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 				g.Add(code)
 			}
 
-			if fn.Error != nil {
+			if fn.Error {
 				g.Add(Return(List(genReturnValue(), Id("nil"))))
 			} else {
 				g.Add(Return(genReturnValue()))
@@ -690,7 +689,7 @@ func (g *Generator) loadTagFunction(field *mapper.StructField) *mapper.Func {
 		panic(fmt.Sprintf("mapper: %q is not a func", tag.Func))
 	}
 
-	return mapper.ExtractFunc(fnType)
+	return mapper.NewFunc(fnType)
 }
 
 func buildFnSignature(lhs, rhs *mapper.Type) string {

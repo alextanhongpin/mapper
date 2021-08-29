@@ -80,8 +80,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 	inputIsPointer := lhs.IsPointer
 	outputIsPointer := fn.To.Type.IsPointer
 	expectsPointer := rhs.IsPointer
-
-	hasError := fn.Error != nil
+	hasError := fn.Error
 	if !hasError {
 		// NO ERROR
 		if !lhs.IsSlice {

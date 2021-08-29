@@ -29,9 +29,64 @@ type Func struct {
 	PkgPath string
 	From    *FuncArg
 	To      *FuncArg
-	// TODO: Change this to boolean.
-	Error *Type
-	Fn    *types.Func // Store the original
+	Error   bool
+	Fn      *types.Func // Store the original
+}
+
+func NewFunc(fn *types.Func) *Func {
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok {
+		panic(fmt.Sprintf("mapper: type is not func: %v", fn))
+	}
+
+	var from, to *FuncArg
+	if sig.Params().Len() > 0 {
+		param := sig.Params().At(0)
+		typ := NewType(param.Type())
+		name := param.Name()
+		if name == "" {
+			name = ShortName(typ.Type)
+		}
+		from = NewFuncArg(name, typ, sig.Variadic())
+	}
+
+	var hasError bool
+	if n := sig.Results().Len(); n > 0 {
+		result := sig.Results().At(0)
+
+		typ := NewType(result.Type())
+		name := result.Name()
+		if name == "" {
+			name = ShortName(typ.Type)
+		}
+		to = NewFuncArg(name, typ, sig.Variadic())
+
+		// Allow errors as second return value.
+		if n > 1 {
+			if errType := NewType(sig.Results().At(1).Type()); errType.IsError {
+				hasError = true
+			} else {
+				// FIXME: Update error handling.
+				panic("mapper: second argument must be error")
+			}
+		}
+	}
+
+	var pkgName, pkgPath string
+	if pkg := fn.Pkg(); pkg != nil {
+		pkgName = pkg.Name()
+		pkgPath = pkg.Path()
+	}
+
+	return &Func{
+		Name:    fn.Name(),
+		Pkg:     pkgName,
+		PkgPath: pkgPath,
+		From:    from,
+		To:      to,
+		Error:   hasError,
+		Fn:      fn,
+	}
 }
 
 func (f *Func) normalizedArg(arg *FuncArg) string {

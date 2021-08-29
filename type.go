@@ -23,46 +23,6 @@ type Type struct {
 	T                types.Type
 }
 
-func (t Type) Normalize() *Type {
-	return &Type{
-		Type:         t.Type,
-		Pkg:          t.Pkg,
-		PkgPath:      t.PkgPath,
-		StructFields: t.StructFields,
-		T:            t.T,
-	}
-}
-
-// Signature is used to compare if two types are equal.
-func (t Type) Signature() string {
-	// *github.com/alextanhongpin/yourpkg/Bar
-	var parts []string
-	if t.IsPointer {
-		parts = append(parts, "*")
-	}
-	if t.IsSlice {
-		parts = append(parts, "[]")
-	}
-	if t.PkgPath != "" {
-		parts = append(parts, t.PkgPath)
-	}
-	parts = append(parts, t.Type)
-	return strings.Join(parts, "")
-}
-
-func (t Type) Equal(other *Type) bool {
-	return t.Signature() == other.Signature()
-}
-
-// EqualElem checks if the type a.A, regardless of whether
-// it is pointer, slice etc, matches type b.B.
-// The elem is only considered the same if they reside in
-// the same pkg.
-// So a.A is not the same as b.A even if both A has same types.
-func (t Type) EqualElem(other *Type) bool {
-	return t.Type == other.Type && t.PkgPath == other.PkgPath
-}
-
 // NewType recursively checks for the field type.
 func NewType(typ types.Type) *Type {
 	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool
@@ -145,4 +105,44 @@ func NewType(typ types.Type) *Type {
 		InterfaceMethods: interfaceMethods,
 		T:                typ,
 	}
+}
+
+func (t Type) Normalize() *Type {
+	return &Type{
+		Type:         t.Type,
+		Pkg:          t.Pkg,
+		PkgPath:      t.PkgPath,
+		StructFields: t.StructFields,
+		T:            t.T,
+	}
+}
+
+// Signature is used to compare if two types are equal.
+func (t Type) Signature() string {
+	// *github.com/alextanhongpin/yourpkg/Bar
+	var parts []string
+	if t.IsPointer {
+		parts = append(parts, "*")
+	}
+	if t.IsSlice {
+		parts = append(parts, "[]")
+	}
+	if t.PkgPath != "" {
+		parts = append(parts, t.PkgPath)
+	}
+	parts = append(parts, t.Type)
+	return strings.Join(parts, "")
+}
+
+func (t Type) Equal(other *Type) bool {
+	return t.Signature() == other.Signature()
+}
+
+// EqualElem checks if the type a.A, regardless of whether
+// it is pointer, slice etc, matches type b.B.
+// The elem is only considered the same if they reside in
+// the same pkg.
+// So a.A is not the same as b.A even if both A has same types.
+func (t Type) EqualElem(other *Type) bool {
+	return t.Type == other.Type && t.PkgPath == other.PkgPath
 }
