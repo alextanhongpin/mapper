@@ -10,16 +10,18 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0NonPtrToPointer := m.CPointerToDPointer(&a0.NonPtrToPointer)
+	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
+	a1NonPtrToPointer := &a0NonPtrToPointer
 	var a0Ptr *D
 	if a0.Ptr != nil {
-		a0Ptr = m.CPointerToDPointer(a0.Ptr)
+		tmp := m.mapMainCToMainD(*a0.Ptr)
+		a0Ptr = &tmp
 	}
 	return B{
 		Bool:            a0.Bool,
 		ID:              a0.ID,
 		Map:             a0.Map,
-		NonPtrToPointer: a0NonPtrToPointer,
+		NonPtrToPointer: a1NonPtrToPointer,
 		Ptr:             a0Ptr,
 		Slice:           a0.Slice,
 		Str:             a0.Str,
@@ -45,7 +47,8 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 
 func (m *MapperImpl) AtoB(a0A A) *B {
 	a1A := m.mapMainAToMainB(a0A)
-	return &a1A
+	a2A := &a1A
+	return a2A
 }
 
 func (m *MapperImpl) CPointerToDPointer(c0C *C) *D {
@@ -64,10 +67,12 @@ func (m *MapperImpl) CtoD(c0C C) D {
 
 func (m *MapperImpl) CtoDPointer(c0C C) *D {
 	c1C := m.mapMainCToMainD(c0C)
-	return &c1C
+	c2C := &c1C
+	return c2C
 }
 
 func (m *MapperImpl) ExternalAtoB(a0A examples.A) *examples.B {
 	a1A := m.mapExamplesAToExamplesB(a0A)
-	return &a1A
+	a2A := &a1A
+	return a2A
 }

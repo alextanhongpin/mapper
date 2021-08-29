@@ -10,10 +10,11 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) (Book, error) {
-	b0Price := m.ConvertPrice(b0.Price)
+	b0Price := m.mapExamplesPriceToMainPrice(b0.Price)
+	b1Price := &b0Price
 	return Book{
 		ID:     b0.ID,
-		Price:  b0Price,
+		Price:  b1Price,
 		Title:  b0.Title,
 		UserID: b0.UserID,
 	}, nil
@@ -29,7 +30,7 @@ func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) (User, error) {
 	var u0Books []Book
 	for _, each := range u0.Books {
-		tmp, err := m.ConvertBook(each)
+		tmp, err := m.mapExamplesBookToMainBook(each)
 		if err != nil {
 			return User{}, err
 		}
@@ -52,7 +53,8 @@ func (m *MapperImpl) ConvertBook(b0Book examples.Book) (Book, error) {
 
 func (m *MapperImpl) ConvertPrice(p0Price examples.Price) *Price {
 	p1Price := m.mapExamplesPriceToMainPrice(p0Price)
-	return &p1Price
+	p2Price := &p1Price
+	return p2Price
 }
 
 func (m *MapperImpl) ConvertUser(u0User examples.User) (User, error) {

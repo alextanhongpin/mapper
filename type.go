@@ -2,7 +2,6 @@ package mapper
 
 import (
 	"go/types"
-	"strings"
 )
 
 type Type struct {
@@ -20,16 +19,20 @@ type Type struct {
 	MapValue         *Type
 	StructFields     map[string]StructField
 	InterfaceMethods map[string]Func
+	ObjPkg           *types.Package
 	T                types.Type
+	E                types.Type
 }
 
 // NewType recursively checks for the field type.
-func NewType(typ types.Type) *Type {
+func NewType(fullType types.Type) *Type {
 	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool
 	var fieldPkgPath, fieldPkg, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
 	var interfaceMethods map[string]Func
+	var objPkg *types.Package
+	typ := fullType
 
 	switch t := typ.(type) {
 	case *types.Interface:
@@ -63,6 +66,7 @@ func NewType(typ types.Type) *Type {
 	switch t := typ.(type) {
 	case *types.Named:
 		obj := t.Obj()
+		objPkg = obj.Pkg()
 		if pkg := obj.Pkg(); pkg != nil {
 			fieldPkg = pkg.Name()
 			fieldPkgPath = pkg.Path()
@@ -92,6 +96,7 @@ func NewType(typ types.Type) *Type {
 		Type:             fieldType,
 		Pkg:              fieldPkg,
 		PkgPath:          fieldPkgPath,
+		ObjPkg:           objPkg,
 		IsStruct:         isStruct,
 		IsSlice:          isSlice,
 		IsArray:          isArray,
@@ -103,7 +108,8 @@ func NewType(typ types.Type) *Type {
 		MapValue:         mapValue,
 		StructFields:     structFields,
 		InterfaceMethods: interfaceMethods,
-		T:                typ,
+		T:                fullType,
+		E:                typ,
 	}
 }
 
@@ -114,24 +120,13 @@ func (t Type) Normalize() *Type {
 		PkgPath:      t.PkgPath,
 		StructFields: t.StructFields,
 		T:            t.T,
+		E:            t.E,
 	}
 }
 
 // Signature is used to compare if two types are equal.
 func (t Type) Signature() string {
-	// *github.com/alextanhongpin/yourpkg/Bar
-	var parts []string
-	if t.IsPointer {
-		parts = append(parts, "*")
-	}
-	if t.IsSlice {
-		parts = append(parts, "[]")
-	}
-	if t.PkgPath != "" {
-		parts = append(parts, t.PkgPath)
-	}
-	parts = append(parts, t.Type)
-	return strings.Join(parts, "")
+	return types.TypeString(t.T, nil)
 }
 
 func (t Type) Equal(other *Type) bool {
@@ -144,5 +139,5 @@ func (t Type) Equal(other *Type) bool {
 // the same pkg.
 // So a.A is not the same as b.A even if both A has same types.
 func (t Type) EqualElem(other *Type) bool {
-	return t.Type == other.Type && t.PkgPath == other.PkgPath
+	return types.TypeString(t.E, nil) == types.TypeString(other.E, nil)
 }

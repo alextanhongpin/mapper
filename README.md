@@ -83,3 +83,8 @@ func (m MapperImpl) AtoB(a A) B {
 
 - [ ] better error handling
 - [ ] handle exported and private fields
+
+
+
+	//types.NewSignature(f.Fn)
+	//types.NewFunc(token.NoPos, f.Fn.Pkg(), f.Fn.Name(), f.Fn.Signature())

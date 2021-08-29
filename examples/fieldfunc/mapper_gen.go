@@ -86,7 +86,8 @@ func (m *MapperImpl) ConvertImportedFuncPointer(c0CustomField examples.CustomFie
 	if err != nil {
 		return nil, err
 	}
-	return &c1CustomField, nil
+	c2CustomField := &c1CustomField
+	return c2CustomField, nil
 }
 
 func (m *MapperImpl) CtoD(c0C C) D {

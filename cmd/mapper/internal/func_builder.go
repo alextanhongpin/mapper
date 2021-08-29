@@ -22,6 +22,13 @@ func NewFuncBuilder(r Resolver, fn *mapper.Func) *FuncBuilder {
 	}
 }
 
+func (b *FuncBuilder) GenReturnType() *Statement {
+	if b.fn.Error {
+		return Parens(List(GenType(b.fn.To.Type), Id("error")))
+	}
+	return GenType(b.fn.To.Type)
+}
+
 func (b *FuncBuilder) GenReturnOnError() *Statement {
 	return GenReturnTypeOnError(*b.fn)
 }
@@ -80,8 +87,10 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 	inputIsPointer := lhs.IsPointer
 	outputIsPointer := fn.To.Type.IsPointer
 	expectsPointer := rhs.IsPointer
-	hasError := fn.Error
-	if !hasError {
+	if outputIsPointer && !expectsPointer {
+		panic("mapper: pointer to value conversion")
+	}
+	if !fn.Error {
 		// NO ERROR
 		if !lhs.IsSlice {
 			// NOT SLICE
@@ -159,12 +168,25 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					}
 				}
 			} else {
-				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER
-				//
-				// Output:
-				// a0Name := fn.Fn(&a0.Name) // Func requires pointer input.
-				// a0Name := fn.Fn(a0.Name)  // Func requires value input.
-				c.Add(a0Name().Op(":=").Add(fnCall()))
+				if !outputIsPointer && expectsPointer {
+					// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER
+					//
+					// Output:
+					// a0Name := fn.Fn(&a0.Name)
+					// a1Name := &a0Name
+					c.Add(a0Name().Op(":=").Add(fnCall()))
+					r.Assign()
+					c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
+				} else {
+					// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > EXPECTS POINTER
+					// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER > DOES NOT EXPECTS POINTER
+					// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER (WILL PANIC ABOVE)
+					//
+					// Output:
+					// a0Name := fn.Fn(&a0.Name) // Func requires pointer input.
+					// a0Name := fn.Fn(a0.Name)  // Func requires value input.
+					c.Add(a0Name().Op(":=").Add(fnCall()))
+				}
 			}
 		} else {
 			// NO ERROR > IS SLICE
@@ -340,16 +362,34 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					}
 				}
 			} else {
-				// HAS ERROR > IS NOT SLICE > INPUT IS NOT POINTER
-				// Output:
-				// a2Name, err := fn.Fn(a1Name)
-				// if err != nil {
-				//  return nil, err
-				// }
-				c.Add(
-					List(a0Name(), Id("err")).Op(":=").Add(fnCall()),
-					b.GenReturnOnError(),
-				)
+				if !outputIsPointer && expectsPointer {
+					// HAS ERROR > IS NOT SLICE > INPUT IS NOT POINTER  > OUTPUT IS NOT POINTER > EXPȨCTS POINTER
+					// Output:
+					//
+					// a0Name, err := fn.Fn(a1Name)
+					// if err != nil {
+					//   return nil, err
+					// }
+					// a1Name := &a0Name
+					c.Add(
+						List(a0Name(), Id("err")).Op(":=").Add(fnCall()),
+						b.GenReturnOnError(),
+					)
+					r.Assign()
+					c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
+				} else {
+					// HAS ERROR > IS NOT SLICE > INPUT IS NOT POINTER
+					// Output:
+					//
+					// a2Name, err := fn.Fn(a1Name)
+					// if err != nil {
+					//   return nil, err
+					// }
+					c.Add(
+						List(a0Name(), Id("err")).Op(":=").Add(fnCall()),
+						b.GenReturnOnError(),
+					)
+				}
 			}
 		} else {
 			// IS SLICE
@@ -531,11 +571,11 @@ func (b *FuncBuilder) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *
 		}
 	}
 	if pointerToNonPointer {
-		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.NormalizedSignature()))
+		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.Signature()))
 	}
 
 	//if isMany {
-	//panic(fmt.Sprintf("mapper: func input must be struct: %s, got %s", fn.NormalizedSignature(), lhs.Signature()))
+	//panic(fmt.Sprintf("mapper: func input must be struct: %s, got %s", fn.Signature(), lhs.Signature()))
 	//}
 }
 

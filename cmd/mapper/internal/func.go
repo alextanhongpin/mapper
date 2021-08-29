@@ -10,7 +10,7 @@ import (
 func GenReturnTypeOnError(fn mapper.Func) *Statement {
 	// TODO: Turn into bool.
 	if !fn.Error {
-		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+		panic(fmt.Sprintf("mapper: missing return error for %s", fn.Signature()))
 	}
 
 	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
@@ -32,7 +32,7 @@ func GenReturnTypeOnError(fn mapper.Func) *Statement {
 func GenReturnTypeNameOnError(fn mapper.Func) *Statement {
 	// TODO: Turn into error.
 	if !fn.Error {
-		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
+		panic(fmt.Sprintf("mapper: missing return error for %s", fn.Signature()))
 	}
 	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
 		// Output:

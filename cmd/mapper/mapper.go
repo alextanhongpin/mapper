@@ -55,7 +55,7 @@ func (g *Generator) Generate() error {
 	// Cache first so that we can re-use later.
 	var keys []string
 	for key, method := range typ.InterfaceMethods {
-		g.mappers[method.NormalizedSignature()] = false
+		g.mappers[method.Normalize().Signature()] = false
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -64,12 +64,13 @@ func (g *Generator) Generate() error {
 	for _, key := range keys {
 		method := typ.InterfaceMethods[key]
 		g.validateToAndFromStruct(method)
-		if g.mappers[method.NormalizedSignature()] {
+		signature := method.Normalize().Signature()
+		if g.mappers[signature] {
 			continue
 		}
-		stmt := g.genPrivateMethod(Null(), method)
+		stmt := g.genPrivateMethod(method)
 		stmts = append(stmts, stmt)
-		g.mappers[method.NormalizedSignature()] = true
+		g.mappers[signature] = true
 	}
 
 	// Generate the struct and constructor before the method declarations.
@@ -82,7 +83,7 @@ func (g *Generator) Generate() error {
 
 	for _, key := range keys {
 		method := typ.InterfaceMethods[key]
-		if !g.mappers[method.NormalizedSignature()] {
+		if !g.mappers[method.Normalize().Signature()] {
 			panic("mapper: method not found")
 		}
 		g.genPublicMethod(f, method)
@@ -156,8 +157,9 @@ func (g *Generator) genConstructor(f *jen.File) {
 
 // genPrivateMethod generates the most basic, struct A to struct B conversion
 // without pointers, slice etc.
-func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Statement {
+func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 	var (
+		f              = Null()
 		typeName       = g.opt.TypeName
 		fnName         = fn.NormalizedName()
 		from           = fn.From
@@ -190,7 +192,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				//
 				// func (l Lhs) Name() string {}
 				//
-				structMethods := mapper.ExtractNamedMethods(from.Type.T)
+				structMethods := mapper.ExtractNamedMethods(from.Type.E)
 				method, ok := structMethods[key]
 				if !ok {
 					panic(fmt.Sprintf("mapper: method not found: %s", field.Tag.Name))
@@ -214,7 +216,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 			// func (l Lhs) Name() string {}
 			//
 			// LHS method can also return error as the second argument.
-			structMethods := mapper.ExtractNamedMethods(from.Type.T)
+			structMethods := mapper.ExtractNamedMethods(from.Type.E)
 			if method, ok := structMethods[key]; ok {
 				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
 			} else {
@@ -237,18 +239,6 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		)
 
 		funcBuilder := internal.NewFuncBuilder(r, &fn)
-
-		assign := func() {
-			// There could be pointer to value conversion or vice versa.
-			if lhsType.IsPointer && !rhsType.IsPointer {
-				panic("mapper: pointer to value conversion not allowed")
-			}
-			if !lhsType.IsPointer && rhsType.IsPointer {
-				dict[bName()] = Op("&").Add(a0Selection())
-			} else {
-				dict[bName()] = a0Selection()
-			}
-		}
 
 		if r.IsMethod() {
 			// IS METHOD
@@ -294,7 +284,11 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 					// Name: a0Name.Name
 					dict[bName()] = a0Selection()
 				} else {
-					assign()
+					if !lhsType.IsPointer && rhsType.IsPointer {
+						dict[bName()] = Op("&").Add(a0Selection())
+					} else {
+						dict[bName()] = a0Selection()
+					}
 				}
 				continue
 			}
@@ -355,7 +349,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 				case typ.IsInterface:
 					method = typ.InterfaceMethods[tag.Func]
 				case typ.IsStruct:
-					structMethods := mapper.ExtractNamedMethods(typ.T)
+					structMethods := mapper.ExtractNamedMethods(typ.E)
 					method = structMethods[tag.Func]
 				default:
 					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
@@ -384,8 +378,9 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 
 			var method *mapper.Func
 			for _, met := range g.opt.Type.InterfaceMethods {
-				if met.NormalizedSignature() == signature {
-					method = &met
+				if met.Normalize().Signature() == signature {
+					method = met.Normalize()
+					method.Error = g.hasErrorByMapper[signature]
 					break
 				}
 			}
@@ -395,7 +390,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 		}
 		// RETURN VALUE.
 		// bName: a0Name
-		assign()
+		dict[bName()] = a0Selection()
 	}
 
 	// No error signature for this function, however there are mappers with
@@ -403,7 +398,7 @@ func (g *Generator) genPrivateMethod(f *jen.Statement, fn mapper.Func) *jen.Stat
 	// TODO:
 
 	// We need to know if the mapper has error signature.
-	g.hasErrorByMapper[fn.NormalizedSignature()] = fn.Error
+	g.hasErrorByMapper[fn.Normalize().Signature()] = fn.Error
 	returnType := func() *Statement { return internal.GenTypeName(to.Type).Clone() }
 
 	f.Func().
@@ -479,39 +474,18 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	//panic("mapper: slice to no-slice and vice versa is not allowed")
 	//}
 
-	mapperHasError := g.hasErrorByMapper[fn.NormalizedSignature()]
+	mapperHasError := g.hasErrorByMapper[fn.Normalize().Signature()]
 	if mapperHasError && !fn.Error {
-		panic(fmt.Sprintf("mapper: missing return error for %s", fn.PrettySignature()))
-	}
-
-	genReturnType := func() *Statement {
-		if fn.Error {
-			return Parens(List(internal.GenType(fn.To.Type), Id("error")))
-		}
-		return internal.GenType(fn.To.Type)
-	}
-
-	genReturnValue := func() *jen.Statement {
-
-		// There could be pointer to value conversion or vice versa.
-		if lhsType.IsPointer && !rhsType.IsPointer {
-			panic("mapper: pointer to value conversion not allowed")
-		}
-		if !lhsType.IsPointer && rhsType.IsPointer {
-			return Op("&").Add(res.RhsVar())
-		}
-		return res.RhsVar()
+		panic(fmt.Sprintf("mapper: missing return error for %s", fn.Signature()))
 	}
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)).               // (c *Converter)
 		Id(fn.Name).Params(arg.Add(internal.GenType(fn.From.Type))). // Convert(a *A)
-		Add(genReturnType()).                                        // (*B, error)
+		Add(funcBuilder.GenReturnType()).                            // (*B, error)
 		BlockFunc(func(g *Group) {
 			normFn := fn.Normalize()
-			if !mapperHasError {
-				normFn.Error = false
-			}
+			normFn.Error = mapperHasError
 
 			funcBuilder.BuildMethodCall(&c, this.genShortName().Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
 
@@ -520,15 +494,15 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 			}
 
 			if fn.Error {
-				g.Add(Return(List(genReturnValue(), Id("nil"))))
+				g.Add(Return(List(res.RhsVar(), Id("nil"))))
 			} else {
-				g.Add(Return(genReturnValue()))
+				g.Add(Return(res.RhsVar()))
 			}
 		}).Line()
 }
 
 func (g *Generator) genShortName() *Statement {
-	return Id(mapper.ShortName(g.opt.TypeName)).Clone()
+	return Id(mapper.ShortName(g.opt.TypeName))
 }
 
 func pointerOp(m *mapper.Type, op string) string {
@@ -547,7 +521,7 @@ func (g *Generator) validateToAndFromStruct(fn mapper.Func) {
 	g.validateFieldMapping(from.Type, to.Type)
 
 	fromFields := from.Type.StructFields
-	fromMethods := mapper.ExtractNamedMethods(from.Type.T)
+	fromMethods := mapper.ExtractNamedMethods(from.Type.E)
 
 	// Check that the result struct has all the fields provided by the input
 	// struct.
@@ -651,11 +625,11 @@ func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *ma
 		}
 	}
 	if pointerToNonPointer {
-		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.NormalizedSignature()))
+		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.Signature()))
 	}
 
 	if isMany {
-		panic(fmt.Sprintf("mapper: func input must be struct: %s, provided %s", fn.NormalizedSignature(), lhs.Signature()))
+		panic(fmt.Sprintf("mapper: func input must be struct: %s, provided %s", fn.Signature(), lhs.Signature()))
 	}
 }
 
@@ -693,11 +667,8 @@ func (g *Generator) loadTagFunction(field *mapper.StructField) *mapper.Func {
 }
 
 func buildFnSignature(lhs, rhs *mapper.Type) string {
-	fn := mapper.Func{
-		From: mapper.NewFuncArg("", lhs, false),
-		To:   mapper.NewFuncArg("", rhs, false),
-	}
-	return fn.NormalizedSignature()
+	fn := mapper.NewFunc(mapper.NormFuncFromTypes(lhs, rhs))
+	return fn.Normalize().Signature()
 }
 
 func buildType(t *mapper.Type) func(*Statement) {
@@ -726,7 +697,7 @@ func ErrMismatchType(lhs, rhs *mapper.Type) error {
 }
 
 func ErrMissingReturnError(fn mapper.Func) error {
-	return fmt.Errorf("mapper: missing return err for %s", fn.PrettySignature())
+	return fmt.Errorf("mapper: missing return err for %s", fn.Signature())
 }
 
 func ErrFuncNotFound(tag *mapper.Tag) error {

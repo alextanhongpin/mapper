@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 	"path"
 	"strings"
@@ -102,37 +103,18 @@ func (f *Func) NormalizedName() string {
 	return fmt.Sprintf("map%sTo%s", in, out)
 }
 
-// NormalizedSignature returns the conversion from A to B without error,
+// Signature returns the conversion from A to B without error,
 // pointers, slice etc.
 // func mapAToB(A) B
-func (f *Func) NormalizedSignature() string {
-	return fmt.Sprintf("func %s(%s) %s",
-		f.NormalizedName(),
-		fullName(f.From.Type.PkgPath, f.From.Type.Type),
-		fullName(f.To.Type.PkgPath, f.To.Type.Type),
-	)
+func (f *Func) Signature() string {
+	if f == nil {
+		return ""
+	}
+	return types.TypeString(f.Fn.Type(), nil)
 }
 
 func (f *Func) Normalize() *Func {
-	from := NewFuncArg(f.From.Name, f.From.Type.Normalize(), false)
-	to := NewFuncArg(f.To.Name, f.To.Type.Normalize(), false)
-	return &Func{
-		Name:    f.Name,
-		Pkg:     f.Pkg,
-		PkgPath: f.PkgPath,
-		From:    from,
-		To:      to,
-		Error:   f.Error,
-		Fn:      f.Fn,
-	}
-}
-
-func (f *Func) PrettySignature() string {
-	return fmt.Sprintf("func %s(%s) %s",
-		f.Name,
-		fullName(f.From.Type.Pkg, f.From.Type.Type),
-		fullName(f.To.Type.Pkg, f.To.Type.Type),
-	)
+	return NewFunc(NormFunc(f.NormalizedName(), f.Fn))
 }
 
 // RequiresInputPointer returns true if the input needs to be converted into a pointer.
@@ -150,4 +132,27 @@ func fullName(pkgPath, name string) string {
 		return name
 	}
 	return fmt.Sprintf("%s.%s", pkgPath, name)
+}
+
+// NormFunc generates a new func with the normalize type -
+// no pointers, slice etc.
+func NormFunc(name string, fn *types.Func) *types.Func {
+	fullSignature := fn.Type().Underlying().(*types.Signature)
+
+	param := NewType(fullSignature.Params().At(0).Type())
+	params := types.NewTuple(types.NewVar(token.NoPos, param.ObjPkg, "", param.E))
+
+	result := NewType(fullSignature.Results().At(0).Type())
+	results := types.NewTuple(types.NewVar(token.NoPos, result.ObjPkg, "", result.E))
+
+	sig := types.NewSignature(nil, params, results, false)
+	return types.NewFunc(token.NoPos, nil, name, sig)
+}
+
+func NormFuncFromTypes(param, result *Type) *types.Func {
+	params := types.NewTuple(types.NewVar(token.NoPos, param.ObjPkg, "", param.E))
+	results := types.NewTuple(types.NewVar(token.NoPos, result.ObjPkg, "", result.E))
+
+	sig := types.NewSignature(nil, params, results, false)
+	return types.NewFunc(token.NoPos, nil, "", sig)
 }
