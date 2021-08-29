@@ -23,7 +23,7 @@ func GenReturnValue(fn *mapper.Func) *Statement {
 		panic(fmt.Sprintf("mapper: missing return error for %s", fn.Signature()))
 	}
 
-	return If(Id("err").Op("!=").Id("nil")).Block(ReturnFunc(func(g *Group) {
+	return If(Err().Op("!=").Nil()).Block(ReturnFunc(func(g *Group) {
 		// Output:
 		//
 		// if err != nil {
@@ -32,10 +32,10 @@ func GenReturnValue(fn *mapper.Func) *Statement {
 		out := fn.To.Type
 		g.Add(List(Do(func(s *Statement) {
 			if out.IsPointer || out.IsSlice {
-				s.Add(Id("nil"))
+				s.Add(Nil())
 			} else {
-				s.Add(GenTypeName(fn.To.Type)).Values()
+				s.Add(GenTypeName(out)).Values()
 			}
-		}), Id("err")))
+		}), Err()))
 	}))
 }

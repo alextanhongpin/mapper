@@ -262,7 +262,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 				//
 				// a0Name, err := a0Name.Name()
 				// if err != nil { ...  }
-				c.Add(List(a0Name(), Id("err")).Op(":=").Add(a0Selection()))
+				c.Add(List(a0Name(), Err()).Op(":=").Add(a0Selection()))
 				c.Add(funcBuilder.GenReturnOnError())
 			} else {
 				// Output:
@@ -402,7 +402,6 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 	// we need to set it manually.
 	g.hasErrorByMapper[fn.Normalize().Signature()] = hasError
 
-	returnType := func() *Statement { return internal.GenTypeName(to.Type).Clone() }
 	normFn := fn.Normalize()
 	normFn.Error = hasError
 
@@ -415,17 +414,17 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 			for _, code := range c {
 				g.Add(code)
 			}
-			g.Add(ReturnFunc(func(g *Group) {
-				if normFn.Error {
-					// Output:
-					// return Bar{}, nil
-					g.Add(List(returnType().Values(dict), Id("nil")))
-				} else {
-					// Output:
-					// return Bar{}
-					g.Add(returnType().Values(dict))
-				}
-			}))
+
+			g.Add(Return(
+				List(
+					internal.GenTypeName(to.Type).Values(dict),
+					Do(func(s *Statement) {
+						if normFn.Error {
+							s.Add(Nil())
+						}
+					}),
+				),
+			))
 		}).Line()
 	return f
 }
@@ -483,7 +482,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 			}
 
 			if fn.Error {
-				g.Add(Return(List(res.RhsVar(), Id("nil"))))
+				g.Add(Return(List(res.RhsVar(), Nil())))
 			} else {
 				g.Add(Return(res.RhsVar()))
 			}

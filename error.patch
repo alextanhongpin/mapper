@@ -1,4 +1,10 @@
 @@
 @@
-- method.Error != nil
-+ method.Error
+- Id("nil")
++ Nil()
+
+#- method.Error != nil
+#+ method.Error
+
+#- Id("err")
+#+ Err()

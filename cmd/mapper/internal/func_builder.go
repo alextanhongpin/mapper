@@ -100,7 +100,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					// }
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
-						If(a0Selection().Op("!=").Id("nil")).Block(
+						If(a0Selection().Op("!=").Nil()).Block(
 							Id("tmp").Op(":=").Add(fnCall()),
 							a0Name().Op("=").Op("&").Id("tmp"),
 						),
@@ -118,7 +118,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					// }
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
-						If(a0Selection().Op("!=").Id("nil")).Block(
+						If(a0Selection().Op("!=").Nil()).Block(
 							a0Name().Op("=").Add(fnCall()),
 						),
 					)
@@ -164,9 +164,9 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 				c.Add(
 					Var().Add(a0Name()).Add(GenType(rhs)),
 					For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-						If(Id("each").Op("!=").Id("nil").Block(
+						If(Id("each").Op("!=").Nil().Block(
 							Id("tmp").Op(":=").Add(fnCall()),
-							If(Id("tmp").Op("!=").Id("nil")).Block(
+							If(Id("tmp").Op("!=").Nil()).Block(
 								a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
 									if outputIsPointer && !expectsPointer {
 										s.Add(Op("*"))
@@ -198,7 +198,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 						Var().Add(a0Name()).Add(GenType(rhs)),
 						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
 							Id("tmp").Op(":=").Add(fnCall()),
-							If(Id("tmp").Op("!=").Id("nil")).Block(
+							If(Id("tmp").Op("!=").Nil()).Block(
 								a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
 									if outputIsPointer && !expectsPointer {
 										s.Add(Op("*"))
@@ -247,8 +247,8 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					// }
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
-						If(a0Selection().Op("!=").Id("nil")).Block(
-							List(Id("tmp"), Id("err")).Op(":=").Add(fnCall()),
+						If(a0Selection().Op("!=").Nil()).Block(
+							List(Id("tmp"), Err()).Op(":=").Add(fnCall()),
 							b.GenReturnOnError(),
 							a0Name().Op("=").Op("&").Id("tmp"),
 						),
@@ -267,8 +267,8 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					//   }
 					// }
 					c.Add(Var().Add(a0Name()).Add(GenType(rhs)))
-					c.Add(If(a0Selection().Op("!=").Id("nil")).Block(
-						List(a0Name(), Id("err")).Op("=").Add(fnCall()),
+					c.Add(If(a0Selection().Op("!=").Nil()).Block(
+						List(a0Name(), Err()).Op("=").Add(fnCall()),
 						b.GenReturnOnError(),
 					))
 				}
@@ -283,7 +283,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					// }
 					// a1Name := &a0Name
 					c.Add(
-						List(a0Name(), Id("err")).Op(":=").Add(fnCall()),
+						List(a0Name(), Err()).Op(":=").Add(fnCall()),
 						b.GenReturnOnError(),
 					)
 					r.Assign()
@@ -297,7 +297,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					//   return nil, err
 					// }
 					c.Add(
-						List(a0Name(), Id("err")).Op(":=").Add(fnCall()),
+						List(a0Name(), Err()).Op(":=").Add(fnCall()),
 						b.GenReturnOnError(),
 					)
 				}
@@ -326,10 +326,10 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
 						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							If(Id("each").Op("!=").Id("nil").Block(
-								List(Id("tmp"), Id("err")).Op(":=").Add(fnCall()),
+							If(Id("each").Op("!=").Nil().Block(
+								List(Id("tmp"), Err()).Op(":=").Add(fnCall()),
 								b.GenReturnOnError(),
-								If(Id("tmp").Op("!=").Id("nil")).Block(
+								If(Id("tmp").Op("!=").Nil()).Block(
 									a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
 										if outputIsPointer && !expectsPointer {
 											s.Add(Op("*"))
@@ -361,10 +361,10 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
 						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							If(Id("each").Op("!=").Id("nil").Block(
-								List(Id("tmp"), Id("err")).Op(":=").Add(fnCall()),
+							If(Id("each").Op("!=").Nil().Block(
+								List(Id("tmp"), Err()).Op(":=").Add(fnCall()),
 								b.GenReturnOnError(),
-								If(Id("tmp").Op("!=").Id("nil")).Block(
+								If(Id("tmp").Op("!=").Nil()).Block(
 									a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
 										if outputIsPointer && !expectsPointer {
 											s.Add(Op("*"))
@@ -399,9 +399,9 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
 						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							List(Id("tmp"), Id("err")).Op(":=").Add(fnCall()),
+							List(Id("tmp"), Err()).Op(":=").Add(fnCall()),
 							b.GenReturnOnError(),
-							If(Id("tmp").Op("!=").Id("nil")).Block(
+							If(Id("tmp").Op("!=").Nil()).Block(
 								a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
 									if outputIsPointer && !expectsPointer {
 										s.Add(Op("*"))
@@ -430,7 +430,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 					c.Add(
 						Var().Add(a0Name()).Add(GenType(rhs)),
 						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							List(Id("tmp"), Id("err")).Op(":=").Add(fnCall()),
+							List(Id("tmp"), Err()).Op(":=").Add(fnCall()),
 							b.GenReturnOnError(),
 							a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
 								if outputIsPointer && !expectsPointer {
