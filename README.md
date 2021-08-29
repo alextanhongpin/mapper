@@ -7,7 +7,10 @@ Generate code that maps struct to struct.
 - should not allow context (?). Is there a need to pass context in mapping?
 - Elem refers to the base type, so slice or pointer type User has Elem User
 
-## Basic
+
+# Basic
+
+## Field
 
 The mapper should be able to map type A to type B, given that both types:
 
@@ -44,7 +47,6 @@ func (m MapperImpl) AtoB(a A) B {
 
 ## Method
 
-
 When A has a method that maps to the name of B's field, we should be able to use that.
 
 - if that method returns a tuple error, `AtoB` should also return a tuple error
@@ -69,6 +71,7 @@ type B struct {
 ```
 
 Expected:
+
 ```go
 type MapperImpl struct {}
 
@@ -79,12 +82,17 @@ func (m MapperImpl) AtoB(a A) B {
 }
 ```
 
+## Error
+## Nested
+## Slice and Variadic
+
+# Tags
+## Renaming Field and Methods
+## Ignore
+## Func
+## Interface and Struct
+
 ## TODO
 
 - [ ] better error handling
 - [ ] handle exported and private fields
-
-
-
-	//types.NewSignature(f.Fn)
-	//types.NewFunc(token.NoPos, f.Fn.Pkg(), f.Fn.Name(), f.Fn.Signature())

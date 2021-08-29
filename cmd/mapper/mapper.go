@@ -310,11 +310,8 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 				lhs := r.Lhs().(mapper.StructField)
 				fn := g.loadTagFunction(&lhs)
 
-				if fn.Error {
-					// TODO: FIXME
-					if !parentHasError {
-						panic(ErrMissingReturnError(*fn))
-					}
+				if fn.Error && !parentHasError {
+					panic(ErrMissingReturnError(*fn))
 				}
 
 				// Build the func.
@@ -336,7 +333,8 @@ func (g *Generator) genPrivateMethod(fn mapper.Func) *jen.Statement {
 				pkg := mapper.LoadPackage(fieldPkgPath)
 				obj := mapper.LookupType(pkg, tag.TypeName)
 				if obj == nil {
-					panic(fmt.Sprintf("mapper: type not found: %s", tag.TypeName))
+					panic(fmt.Sprintf(`mapper: invalid tag %q
+help: Cannot load type %q`, tag.Tag, tag.TypeName))
 				}
 
 				if _, ok := obj.Type().(*types.Named); !ok {
@@ -469,14 +467,9 @@ func (g *Generator) genPublicMethod(f *jen.File, fn mapper.Func) {
 	res.Assign()
 	funcBuilder := internal.NewFuncBuilder(res, &fn)
 
-	// TODO: Separate validation.
-	//if many != rhs.IsSlice {
-	//panic("mapper: slice to no-slice and vice versa is not allowed")
-	//}
-
 	mapperHasError := g.hasErrorByMapper[fn.Normalize().Signature()]
 	if mapperHasError && !fn.Error {
-		panic(fmt.Sprintf("mapper: missing return error for %s", fn.Signature()))
+		panic(ErrMissingReturnError(fn))
 	}
 
 	f.Func().
@@ -517,15 +510,15 @@ func argsWithIndex(name string, index int) string {
 }
 
 func (g *Generator) validateToAndFromStruct(fn mapper.Func) {
-	from, to := fn.From, fn.To
-	g.validateFieldMapping(from.Type, to.Type)
+	lhs, rhs := fn.From.Type, fn.To.Type
+	g.validateFieldMapping(lhs, rhs)
 
-	fromFields := from.Type.StructFields
-	fromMethods := mapper.ExtractNamedMethods(from.Type.E)
+	fromFields := lhs.StructFields
+	fromMethods := mapper.ExtractNamedMethods(lhs.E)
 
 	// Check that the result struct has all the fields provided by the input
 	// struct.
-	for name, rhs := range to.Type.StructFields {
+	for name, rhs := range rhs.StructFields {
 		if lhs, exists := fromFields[name]; exists {
 			g.validateStructField(lhs, rhs)
 			continue
@@ -534,12 +527,10 @@ func (g *Generator) validateToAndFromStruct(fn mapper.Func) {
 			g.validateMethodSignature(lhs, rhs)
 			continue
 		}
-		panic(fmt.Sprintf("mapper: field not found: %s.%s does not have fields that maps to %s.%s(%s)",
-			from.Type.Pkg,
-			from.Name,
-			to.Type.Pkg,
+		panic(fmt.Sprintf("mapper: field not found: %s does not have fields that maps to %s(%s)",
+			lhs.Signature(),
+			rhs.Signature(),
 			name,
-			to.Type.Type,
 		))
 	}
 }
@@ -564,14 +555,16 @@ func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
 		if _, exists := g.mappers[buildFnSignature(lhs.Type, rhs.Type)]; exists {
 			return
 		}
+
 		// There could also be a tag function.
 		if lhs.Tag != nil {
 			return
 		}
+
 		// There could also be a value to pointer conversion.
 		// Only applies for the same type, e.g. string to *string.
 		// For structs, they may belong to different package.
-		if (lhs.Type.Type == rhs.Type.Type) && (lhs.Type.PkgPath == rhs.Type.PkgPath) && (!lhs.IsPointer && rhs.IsPointer) {
+		if lhs.EqualElem(rhs.Type) {
 			return
 		}
 
@@ -603,30 +596,21 @@ func (g *Generator) validateMethodSignature(lhs mapper.Func, rhs mapper.StructFi
 // operated at elem level.
 func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
 	var (
-		in                  = fn.From.Type
-		out                 = fn.To.Type
-		pointerToNonPointer = lhs.IsPointer && !rhs.IsPointer
-		isMany              = fn.From.Type.IsSlice || fn.From.Variadic
+		in     = fn.From.Type
+		out    = fn.To.Type
+		isMany = fn.From.Type.IsSlice || fn.From.Variadic
 	)
 	// Slice A might not equal A
 	// []A != A
-	if !in.Equal(lhs) {
-		// But internally, the type matches. This is allowed because we may have a
-		// private mapper that maps A.
-		// A == A
-		if in.Type != lhs.Type {
-			panic(ErrMismatchType(in, lhs))
-		}
+	if !in.EqualElem(lhs) {
+		panic(ErrMismatchType(in, lhs))
 	}
 
-	if !out.Equal(rhs) {
-		if out.Type != rhs.Type {
-			panic(ErrMismatchType(out, rhs))
-		}
+	if !out.EqualElem(rhs) {
+		panic(ErrMismatchType(out, rhs))
 	}
-	if pointerToNonPointer {
-		panic(fmt.Sprintf("mapper: func cannot return non-pointer for value input: %s", fn.Signature()))
-	}
+
+	g.validatePointerConversion(in, out)
 
 	if isMany {
 		panic(fmt.Sprintf("mapper: func input must be struct: %s, provided %s", fn.Signature(), lhs.Signature()))
@@ -669,17 +653,6 @@ func (g *Generator) loadTagFunction(field *mapper.StructField) *mapper.Func {
 func buildFnSignature(lhs, rhs *mapper.Type) string {
 	fn := mapper.NewFunc(mapper.NormFuncFromTypes(lhs, rhs))
 	return fn.Normalize().Signature()
-}
-
-func buildType(t *mapper.Type) func(*Statement) {
-	return func(s *Statement) {
-		if t.IsSlice {
-			s.Add(Index())
-		}
-		if t.IsPointer {
-			s.Add(Op("*"))
-		}
-	}
 }
 
 func ErrConversion(lhs, rhs *mapper.Type) error {
