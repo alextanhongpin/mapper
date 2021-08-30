@@ -8,7 +8,7 @@ type Mapper interface {
 }
 
 type A struct {
-	Status string `map:"CustomStatus()"` // Maps this field to `B.CustomStatus`.
+	Status string
 }
 
 func (a A) CustomStatus() string {
@@ -16,5 +16,5 @@ func (a A) CustomStatus() string {
 }
 
 type B struct {
-	Status string `map:"CustomStatus"`
+	Status string `map:"CustomStatus()"` // Maps this field from `A.CustomStatus()`
 }

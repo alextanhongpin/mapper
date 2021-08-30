@@ -464,8 +464,8 @@ func (b *FuncBuilder) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *
 		panic(ErrMismatchType(out, rhs))
 	}
 
+	// For the scenario `*string -> sql.NullString`
 	if pointerToNonPointer {
-		panic(fmt.Errorf("mapper: func cannot return non-pointer for value input: %s", fn.Signature()))
 	}
 }
 

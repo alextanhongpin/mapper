@@ -170,7 +170,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 
 	// Loop through all the target keys.
 	var keys []string
-	for key := range to.Type.StructFields {
+	for key := range to.Type.StructFields.WithTags() {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -178,11 +178,11 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	var resolvers []internal.Resolver
 	for _, key := range keys {
 		// The RHS struct field.
-		to := to.Type.StructFields[key]
+		to := to.Type.StructFields.WithTags()[key]
 
 		// If LHS field matches the RHS field ...
 		if field, ok := from.Type.StructFields[key]; ok {
-			if field.Tag != nil && !field.Tag.IsField() {
+			if to.Tag != nil && !to.Tag.IsField() {
 				// Has a LHS struct field, but calls the method instead.
 				//
 				// Input:
@@ -307,8 +307,8 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
-				lhs := r.Lhs().(mapper.StructField)
-				fn := g.loadTagFunction(&lhs)
+				rhs := r.Rhs()
+				fn := g.loadTagFunction(&rhs)
 				if fn.Error {
 					hasError = fn.Error
 				}
@@ -513,7 +513,7 @@ func (g *Generator) validateToAndFromStruct(fn *mapper.Func) {
 
 	// Check that the result struct has all the fields provided by the input
 	// struct.
-	for name, rhs := range rhs.StructFields {
+	for name, rhs := range rhs.StructFields.WithTags() {
 		if lhs, exists := fromFields[name]; exists {
 			g.validateStructField(lhs, rhs)
 			continue
@@ -552,7 +552,7 @@ func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
 		}
 
 		// There could also be a tag function.
-		if lhs.Tag != nil {
+		if rhs.Tag != nil {
 			return
 		}
 
@@ -571,13 +571,15 @@ func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
 // signature required by rhs.
 func (g *Generator) validateMethodSignature(lhs *mapper.Func, rhs mapper.StructField) {
 	if lhs.From != nil {
-		panic(fmt.Sprintf("mapper: struct method should not have arguments %s.%s(%s %s)", lhs.Pkg, lhs.Name, lhs.From.Name, lhs.From.Type.Type))
+		panic(fmt.Sprintf("mapper: struct method should not have arguments %s", lhs.Signature()))
 	}
 
 	// TODO: check if there is a local mapper that fulfils this type conversion.
 	// This can only be from one of the converters.
 	if !lhs.To.Type.Equal(rhs.Type) {
-		panic(ErrConversion(lhs.To.Type, rhs.Type))
+		if rhs.Tag == nil {
+			panic(ErrConversion(lhs.To.Type, rhs.Type))
+		}
 	}
 }
 

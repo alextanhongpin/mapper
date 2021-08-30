@@ -10,7 +10,7 @@ func NewMapperImpl() *MapperImpl {
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 	return B{
 		AnotherID: a0.ID,
-		Name:      a0.MyName,
+		Name:      a0.Name,
 		ToB:       a0.FromA,
 	}
 }

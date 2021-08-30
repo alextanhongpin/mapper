@@ -7,6 +7,12 @@ type Mapper interface {
 }
 
 type A struct {
+	URL string
+
+	ExternalURL string
+}
+
+type B struct {
 	// Defining local function to perform field conversion.
 	URL string `map:",URLer.Build"`
 
@@ -14,11 +20,6 @@ type A struct {
 	ExternalURL string `map:",github.com/alextanhongpin/mapper/examples/URLer.Build"`
 }
 
-type B struct {
-	URL         string
-	ExternalURL string
-}
-
 type URLer interface {
-	Build(path string) string
+	Build(path string) (string, error)
 }

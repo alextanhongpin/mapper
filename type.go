@@ -17,7 +17,7 @@ type Type struct {
 	IsMap            bool
 	MapKey           *Type
 	MapValue         *Type
-	StructFields     map[string]StructField
+	StructFields     StructFields
 	InterfaceMethods map[string]*Func
 	ObjPkg           *types.Package
 	T                types.Type

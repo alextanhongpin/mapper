@@ -68,5 +68,5 @@ func (f FieldResolver) IsMethod() bool {
 }
 
 func (f FieldResolver) Tag() *mapper.Tag {
-	return f.lhs.Tag
+	return f.rhs.Tag
 }

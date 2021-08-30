@@ -82,8 +82,5 @@ func (f MethodResolver) IsMethod() bool {
 }
 
 func (f MethodResolver) Tag() *mapper.Tag {
-	if f.field == nil {
-		return nil
-	}
-	return f.field.Tag
+	return f.rhs.Tag
 }

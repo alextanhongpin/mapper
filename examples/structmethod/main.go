@@ -11,6 +11,12 @@ type Mapper interface {
 }
 
 type A struct {
+	URL string
+
+	ExternalURL string
+}
+
+type B struct {
 	// Defining local function to perform field conversion.
 	URL string `map:",URLBuilder.Build"`
 
@@ -18,15 +24,10 @@ type A struct {
 	ExternalURL string `map:",github.com/alextanhongpin/mapper/examples/URLBuilder.Build"`
 }
 
-type B struct {
-	URL         string
-	ExternalURL string
-}
-
 type URLBuilder struct {
 	Domain string
 }
 
-func (u URLBuilder) Build(path string) string {
-	return filepath.Join(u.Domain, path)
+func (u URLBuilder) Build(path string) (string, error) {
+	return filepath.Join(u.Domain, path), nil
 }

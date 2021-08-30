@@ -33,19 +33,32 @@ func ExtractInterfaceMethods(in *types.Interface) map[string]*Func {
 	return result
 }
 
-func ExtractStructFields(structType *types.Struct) map[string]StructField {
-	fields := make(map[string]StructField)
+type StructFields map[string]StructField
+
+func (s StructFields) WithTags() StructFields {
+	result := make(StructFields)
+	for key, val := range s {
+		tag := val.Tag
+		if tag != nil {
+			if tag.Ignore {
+				continue
+			}
+			if tag.IsAlias() {
+				key = tag.Name
+			}
+		}
+		result[key] = val
+	}
+	return result
+}
+
+func ExtractStructFields(structType *types.Struct) StructFields {
+	fields := make(StructFields)
 	for i := 0; i < structType.NumFields(); i++ {
 		field := structType.Field(i)
 		key := field.Name()
 
-		tag, ok := NewTag(structType.Tag(i))
-		if ok && tag.IsAlias() {
-			key = tag.Name
-		}
-		if ok && tag.Ignore {
-			continue
-		}
+		tag, _ := NewTag(structType.Tag(i))
 
 		fields[key] = StructField{
 			Name:     field.Name(),

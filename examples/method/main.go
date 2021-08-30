@@ -24,7 +24,7 @@ type A struct {
 	slice  []string
 	m      map[string]int
 	t      time.Time
-	status Status `map:"Status(),StatusToString"`
+	status Status
 }
 
 func (a *A) ID() int            { return a.id }
@@ -42,7 +42,7 @@ type B struct {
 	Slice  []string
 	Map    map[string]int
 	Time   time.Time
-	Status string
+	Status string `map:"Status(),StatusToString"`
 }
 
 type C struct {

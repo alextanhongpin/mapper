@@ -8,13 +8,13 @@ type Mapper interface {
 }
 
 type A struct {
-	ID     int
-	MyName string `map:"Name"` // Maps this field to `B.Name`.
-	FromA  string `map:"A"`
+	ID    int
+	Name  string
+	FromA string
 }
 
 type B struct {
 	AnotherID int `json:"anotherId" map:"ID"` // Maps this field from `A.ID`.
 	Name      string
-	ToB       string `map:"A"`
+	ToB       string `map:"FromA"` // Maps this field from `A.FromA`.
 }

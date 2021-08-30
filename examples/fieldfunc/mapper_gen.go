@@ -2,6 +2,7 @@
 package main
 
 import (
+	"database/sql"
 	examples "github.com/alextanhongpin/mapper/examples"
 	uuid "github.com/google/uuid"
 	"strconv"
@@ -32,6 +33,10 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		}
 		a0Nums = append(a0Nums, tmp)
 	}
+	var a0PtrString sql.NullString
+	if a0.PtrString != nil {
+		a0PtrString = PointerStringToNullString(a0.PtrString)
+	}
 	a0Remarks := NullStringToPointer(a0.Remarks)
 	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
 	if err != nil {
@@ -46,6 +51,7 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		ID:           a0ID,
 		IDs:          a0IDs,
 		Nums:         a0Nums,
+		PtrString:    a0PtrString,
 		Remarks:      a0Remarks,
 		RemarksError: a0RemarksError,
 		UUID:         a0UUID,
@@ -53,7 +59,7 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 }
 
 func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomField) (CustomField, error) {
-	c0Num, err := examples.StringToInt(c0.Num)
+	c0Num, err := StringToInt(c0.Num)
 	if err != nil {
 		return CustomField{}, err
 	}

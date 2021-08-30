@@ -3,7 +3,6 @@ package examples
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 )
 
 func IntToString(i int) string {
@@ -57,9 +56,5 @@ type Price struct {
 }
 
 type CustomField struct {
-	Num string `map:",StringToInt"`
-}
-
-func StringToInt(str string) (int, error) {
-	return strconv.Atoi(str)
+	Num string
 }
