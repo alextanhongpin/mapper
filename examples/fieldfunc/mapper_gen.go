@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+var _ Mapper = (*MapperImpl)(nil)
+
 type MapperImpl struct{}
 
 func NewMapperImpl() *MapperImpl {
@@ -121,7 +123,7 @@ func (m *MapperImpl) SliceCtoD(c0C []C) []D {
 	return c1C
 }
 
-func (m *MapperImpl) VariadicAtoB(a0A []A) ([]B, error) {
+func (m *MapperImpl) VariadicAtoB(a0A ...A) ([]B, error) {
 	var a1A []B
 	for _, each := range a0A {
 		tmp, err := m.mapMainAToMainB(each)
@@ -133,7 +135,7 @@ func (m *MapperImpl) VariadicAtoB(a0A []A) ([]B, error) {
 	return a1A, nil
 }
 
-func (m *MapperImpl) VariadicCtoD(c0C []C) []D {
+func (m *MapperImpl) VariadicCtoD(c0C ...C) []D {
 	c1C := make([]D, len(c0C))
 	for i, each := range c0C {
 		c1C[i] = m.mapMainCToMainD(each)

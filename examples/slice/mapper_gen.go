@@ -3,6 +3,8 @@ package main
 
 import examples "github.com/alextanhongpin/mapper/examples"
 
+var _ Mapper = (*MapperImpl)(nil)
+
 type MapperImpl struct{}
 
 func NewMapperImpl() *MapperImpl {
@@ -50,7 +52,7 @@ func (m *MapperImpl) SliceAtoB(a0A []A) []B {
 	return a1A
 }
 
-func (m *MapperImpl) Variadic(a0A []A) []B {
+func (m *MapperImpl) Variadic(a0A ...A) []B {
 	a1A := make([]B, len(a0A))
 	for i, each := range a0A {
 		a1A[i] = m.mapMainAToMainB(each)
@@ -58,7 +60,7 @@ func (m *MapperImpl) Variadic(a0A []A) []B {
 	return a1A
 }
 
-func (m *MapperImpl) VariadicError(a0A []A) ([]B, error) {
+func (m *MapperImpl) VariadicError(a0A ...A) ([]B, error) {
 	a1A := make([]B, len(a0A))
 	for i, each := range a0A {
 		a1A[i] = m.mapMainAToMainB(each)

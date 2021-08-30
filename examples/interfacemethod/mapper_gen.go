@@ -3,6 +3,8 @@ package main
 
 import examples "github.com/alextanhongpin/mapper/examples"
 
+var _ Mapper = (*MapperImpl)(nil)
+
 type MapperImpl struct {
 	examplesURLer examples.URLer
 	uRLer         URLer

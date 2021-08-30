@@ -74,6 +74,7 @@ func (g *Generator) Generate() error {
 	}
 
 	// Generate the struct and constructor before the method declarations.
+	g.genInterfaceChecker(f)
 	g.genStruct(f)
 	g.genConstructor(f)
 
@@ -101,6 +102,14 @@ func (g *Generator) usesKeys() []string {
 	return keys
 }
 
+func (g *Generator) genInterfaceChecker(f *jen.File) {
+	// Output:
+	//
+	// var _ Converter = (*ConverterImpl)(nil)
+
+	f.Var().Op("_").Id(g.opt.TypeName).Op("=").Parens(Op("*").Id(g.genTypeName())).Parens(Nil())
+}
+
 func (g *Generator) genStruct(f *jen.File) {
 	// Output:
 	//
@@ -109,7 +118,7 @@ func (g *Generator) genStruct(f *jen.File) {
 	//   customStruct    *structpkg.CustomStruct
 	// }
 
-	f.Type().Id(g.opt.TypeName).StructFunc(func(group *Group) {
+	f.Type().Id(g.genTypeName()).StructFunc(func(group *Group) {
 		typeNames := g.usesKeys()
 		for _, typeName := range typeNames {
 			use := g.uses[typeName]
@@ -132,7 +141,7 @@ func (g *Generator) genConstructor(f *jen.File) {
 	//   }
 	// }
 
-	typeName := g.opt.TypeName
+	typeName := g.genTypeName()
 	typeNames := g.usesKeys()
 
 	f.Func().Id(fmt.Sprintf("New%s", typeName)).ParamsFunc(func(group *Group) {
@@ -160,7 +169,7 @@ func (g *Generator) genConstructor(f *jen.File) {
 func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	var (
 		f              = Null()
-		typeName       = g.opt.TypeName
+		typeName       = g.genTypeName()
 		fnName         = fn.NormalizedName()
 		from           = fn.From
 		to             = fn.To
@@ -406,9 +415,9 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 	normFn.Error = hasError
 
 	f.Func().
-		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
-		Id(fnName).                                    // mapMainAToMainB
-		Params(internal.GenInputType(normFn)).         // (a A)
+		Params(g.genShortName().Op("*").Id(typeName)).                         // (c *Converter)
+		Id(fnName).                                                            // mapMainAToMainB
+		Params(internal.GenInputType(internal.GenInputValue(normFn), normFn)). // (a A)
 		Add(internal.GenReturnType(normFn)).
 		BlockFunc(func(g *Group) {
 			for _, code := range c {
@@ -431,7 +440,7 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 
 func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 	var (
-		typeName = g.opt.TypeName
+		typeName = g.genTypeName()
 		lhsType  = fn.From.Type
 		rhsType  = fn.To.Type
 	)
@@ -468,9 +477,10 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 	}
 
 	f.Func().
-		Params(g.genShortName().Op("*").Id(typeName)).               // (c *Converter)
-		Id(fn.Name).Params(arg.Add(internal.GenType(fn.From.Type))). // Convert(a *A)
-		Add(funcBuilder.GenReturnType()).                            // (*B, error)
+		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
+		Id(fn.Name).
+		Params(internal.GenInputType(arg, fn)). // Convert(a *A)
+		Add(funcBuilder.GenReturnType()).       // (*B, error)
 		BlockFunc(func(g *Group) {
 			normFn := fn.Normalize()
 			normFn.Error = mapperHasError
@@ -489,8 +499,12 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 		}).Line()
 }
 
+func (g *Generator) genTypeName() string {
+	return g.opt.TypeName + g.opt.Suffix
+}
+
 func (g *Generator) genShortName() *Statement {
-	return Id(mapper.ShortName(g.opt.TypeName))
+	return Id(mapper.ShortName(g.genTypeName()))
 }
 
 func pointerOp(m *mapper.Type, op string) string {

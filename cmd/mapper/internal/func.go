@@ -7,8 +7,24 @@ import (
 	. "github.com/dave/jennifer/jen"
 )
 
-func GenInputType(fn *mapper.Func) *Statement {
-	return Id(argsWithIndex(fn.From.Name, 0)).Add(GenType(fn.From.Type))
+func GenInputValue(fn *mapper.Func) *Statement {
+	return Id(argsWithIndex(fn.From.Name, 0))
+}
+
+func GenInputType(arg *Statement, fn *mapper.Func) *Statement {
+	// Output:
+	//
+	// (a0 ...a.A)
+	return arg.Do(func(s *Statement) {
+		if fn.From.Variadic {
+			s.Add(Op("..."))
+		} else if fn.From.Type.IsSlice {
+			s.Add(Index())
+		}
+		if fn.From.Type.IsPointer {
+			s.Add(Op("*"))
+		}
+	}).Add(GenTypeName(fn.From.Type))
 }
 
 func GenReturnType(fn *mapper.Func) *Statement {

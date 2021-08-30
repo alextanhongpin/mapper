@@ -27,16 +27,11 @@ type Mapper interface {
 }
 
 type A struct {
-	ID int
-
-	IDs []string
-
-	ExternalID int
-
-	Nums []string
-
-	UUID string
-
+	ID           int
+	IDs          []string
+	ExternalID   int
+	Nums         []string
+	UUID         string
 	Remarks      sql.NullString
 	RemarksError sql.NullString
 	PtrString    *string

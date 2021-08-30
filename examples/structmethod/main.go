@@ -11,8 +11,7 @@ type Mapper interface {
 }
 
 type A struct {
-	URL string
-
+	URL         string
 	ExternalURL string
 }
 

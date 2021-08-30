@@ -16,6 +16,7 @@ type Option struct {
 	PkgName  string // The pkgName
 	PkgPath  string // The pkgPath
 	TypeName string // The typeName
+	Suffix   string
 	Type     *Type
 	DryRun   bool
 }
@@ -65,7 +66,8 @@ func New(fn Generator) error {
 			PkgPath:  pkg.PkgPath,
 			Out:      out,
 			In:       in,
-			TypeName: typeName + *suffixPtr,
+			TypeName: typeName,
+			Suffix:   *suffixPtr,
 			Type:     NewType(inType),
 			DryRun:   *dryRunPtr,
 		}); err != nil {
