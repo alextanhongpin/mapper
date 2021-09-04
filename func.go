@@ -34,8 +34,9 @@ type Func struct {
 	Error   bool
 	Fn      *types.Func // Store the original
 
-	once sync.Once
-	Norm *Func
+	once     sync.Once
+	Norm     *Func
+	NormType *types.Func
 }
 
 func NewFunc(fn *types.Func) *Func {
@@ -119,7 +120,9 @@ func (f *Func) Signature() string {
 
 func (f *Func) Normalize() *Func {
 	f.once.Do(func() {
-		f.Norm = NewFunc(NormFunc(f.NormalizedName(), f.Fn))
+		T := NormFunc(f.NormalizedName(), f.Fn)
+		f.Norm = NewFunc(T)
+		f.NormType = T
 	})
 	return f.Norm
 }

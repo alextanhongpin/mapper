@@ -13,6 +13,7 @@ type StructField struct {
 	PkgPath  string // e.g. github.com/your-org/yourpkg
 	Exported bool   // e.g. true
 	Tag      *Tag   // e.g. `map:"RenameField,CustomFunction"`
+	Ordinal  int    // The original position of the struct field.
 	*Type
 	*types.Var
 }
