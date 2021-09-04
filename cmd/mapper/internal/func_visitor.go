@@ -60,11 +60,14 @@ func VisitFunc(fn *types.Func) {
 	// Load all struct field tags
 	// struct field return methods must match the rhs field return type.
 	// struct field input must match all the lhs input
+	
+	// checkFuncHasOneParam
 	npar := sig.Params().Len()
 	if npar != 1 {
 		panic("invalid param count")
 	}
 
+	// checkFuncHasOneResult
 	nres := sig.Results().Len()
 	if nres < 1 || nres > 2 {
 		panic("invalid result count")
@@ -96,11 +99,13 @@ func VisitFunc(fn *types.Func) {
 		}
 
 	*/
+	// checkFuncMissingError
 	if resultVisitor.hasError && !hasError {
 		// Invalid error signature
 		panic("error not implemented")
 	}
 
+	// checkFieldsHasMappings
 	for name, rhs := range resultVisitor.fields {
 		// It's a field mapping.
 		if lhs, ok := paramVisitor.fields[name]; ok {
@@ -113,6 +118,7 @@ func VisitFunc(fn *types.Func) {
 				continue
 			}
 			// TODO: Check private mapper method.
+			// NOTE: Load all function before doing this checking.
 			if !lhs.Type.EqualElem(rhs.Type) {
 				panic("cannot map field")
 			}
@@ -127,4 +133,37 @@ func VisitFunc(fn *types.Func) {
 		}
 		panic("not matching field found")
 	}
+	// Deferred
+	// checkTypesMatchs
+	if paramVisitor.isCollection != resultVisitor.isCollection {}
+}
+type Transform struct {
+	Left, Right interface{}
+}
+
+func VisitFuncs(fns map[string]*mapper.Func) {
+	// privateMethods := make(map
+	// infos ...
+
+	// for each fn
+	//    info := VisitFunc(fn)
+	//    store the info for later used
+	//    privateMethods[info.normalizedSignature] = false
+	
+	// full validation can now be done
+	// for each info
+	//     validate each field
+	//         rhs field must match lgs field or method
+	//         if got tag, output of fn must match rhs field, input of fn must match lhs field or method
+	//         if no tag, it must match one of the privatemethods, or type must be equal, except pointer
+	
+	// Time to build private methods
+	// is method? expand the method first
+	// has tag? apply transformation
+	// has private method? apply it
+	// pointer? apply it
+}
+
+func IsUnderlyingIdentical() bool {
+    return false
 }
