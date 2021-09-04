@@ -20,8 +20,14 @@ func (v *UnderlyingVisitor) Visit(T types.Type) bool {
 	}
 }
 
+// NewUnderlyingType extracts the underlying type of a Type.
 func NewUnderlyingType(T types.Type) types.Type {
 	v := &UnderlyingVisitor{}
 	_ = mapper.Walk(v, T)
 	return v.u
+}
+
+func IsUnderlyingError(T types.Type) bool {
+	U := NewUnderlyingType(T)
+	return U.String() == "error"
 }
