@@ -86,6 +86,30 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 				m = met
 			}
 
+			/*
+				Return underlying type should match.
+				If the field type is []A, *A or just A, then the function/method should
+				also return the equivalent type A.
+
+				type Foo struct {
+					// AddSalutation accepts string, so it will be mapped over the names.
+					names []string `map:",AddSalutation"`
+
+					// CheckAge returns an error as the second return value.
+					age int64 `map:",CheckAge"`
+				}
+
+				func Rename(name string) string {
+					return "Mr/Ms " + name
+				}
+
+				func CheckAge(age int64) (int64, error) {
+					if age < 0 || age > 150 {
+						return 0, errors.New("invalid age")
+					}
+					return age, nil
+				}
+			*/
 			if !types.IdenticalIgnoreTags(
 				NewUnderlyingType(m.To.Type.E),
 				NewUnderlyingType(field.E),
