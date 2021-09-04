@@ -4,24 +4,48 @@ import (
 	"go/types"
 )
 
+type Visitor interface {
+	Visit(T types.Type) bool
+}
+
+func Walk(visitor Visitor, T types.Type) bool {
+	if next := visitor.Visit(T); !next {
+		return next
+	}
+
+	switch u := T.Underlying().(type) {
+	case *types.Named:
+		return Walk(visitor, u.Underlying())
+	case *types.Pointer:
+		return Walk(visitor, u.Elem())
+	case *types.Array:
+		return Walk(visitor, u.Elem())
+	case *types.Slice:
+		return Walk(visitor, u.Elem())
+	case *types.Map:
+		return Walk(visitor, u.Elem())
+	default:
+		return types.IdenticalIgnoreTags(T, u)
+	}
+}
+
 type Type struct {
-	Type             string `example:"NullString"`
-	Pkg              string `example:"sql"`
-	PkgPath          string `example:"database/sql"`
-	IsStruct         bool
-	IsPointer        bool
-	IsArray          bool // Whether it's an array or slice.
-	IsInterface      bool
-	IsSlice          bool
-	IsError          bool
-	IsMap            bool
-	MapKey           *Type
-	MapValue         *Type
-	StructFields     StructFields
-	InterfaceMethods map[string]*Func
-	ObjPkg           *types.Package
-	T                types.Type
-	E                types.Type
+	Type         string `example:"NullString"`
+	Pkg          string `example:"sql"`
+	PkgPath      string `example:"database/sql"`
+	IsStruct     bool
+	IsPointer    bool
+	IsArray      bool // Whether it's an array or slice.
+	IsInterface  bool
+	IsSlice      bool
+	IsError      bool
+	IsMap        bool
+	MapKey       *Type
+	MapValue     *Type
+	StructFields StructFields
+	ObjPkg       *types.Package
+	T            types.Type
+	E            types.Type
 }
 
 // NewType recursively checks for the field type.
@@ -30,14 +54,12 @@ func NewType(fullType types.Type) *Type {
 	var fieldPkgPath, fieldPkg, fieldType string
 	var mapKey, mapValue *Type
 	var structFields map[string]StructField
-	var interfaceMethods map[string]*Func
 	var objPkg *types.Package
 	typ := fullType
 
 	switch t := typ.(type) {
 	case *types.Interface:
 		isInterface = true
-		interfaceMethods = ExtractInterfaceMethods(t)
 	case *types.Pointer:
 		isPointer = true
 		typ = t.Elem()
@@ -82,7 +104,6 @@ func NewType(fullType types.Type) *Type {
 		// The underlying type could be a interface.
 		if types.IsInterface(obj.Type().Underlying()) {
 			isInterface = true
-			interfaceMethods = ExtractInterfaceMethods(obj.Type().Underlying().(*types.Interface))
 		}
 	case *types.Struct:
 		isStruct = true
@@ -93,23 +114,22 @@ func NewType(fullType types.Type) *Type {
 
 	isError = fieldType == "error"
 	return &Type{
-		Type:             fieldType,
-		Pkg:              fieldPkg,
-		PkgPath:          fieldPkgPath,
-		ObjPkg:           objPkg,
-		IsStruct:         isStruct,
-		IsSlice:          isSlice,
-		IsArray:          isArray,
-		IsPointer:        isPointer,
-		IsMap:            isMap,
-		IsInterface:      isInterface,
-		IsError:          isError,
-		MapKey:           mapKey,
-		MapValue:         mapValue,
-		StructFields:     structFields,
-		InterfaceMethods: interfaceMethods,
-		T:                fullType,
-		E:                typ,
+		Type:         fieldType,
+		Pkg:          fieldPkg,
+		PkgPath:      fieldPkgPath,
+		ObjPkg:       objPkg,
+		IsStruct:     isStruct,
+		IsSlice:      isSlice,
+		IsArray:      isArray,
+		IsPointer:    isPointer,
+		IsMap:        isMap,
+		IsInterface:  isInterface,
+		IsError:      isError,
+		MapKey:       mapKey,
+		MapValue:     mapValue,
+		StructFields: structFields,
+		T:            fullType,
+		E:            typ,
 	}
 }
 

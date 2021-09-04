@@ -73,7 +73,6 @@ func New(fn Generator) error {
 		}); err != nil {
 			return err
 		}
-		fmt.Println("generated " + out)
 	}
 	return nil
 }
