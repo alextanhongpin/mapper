@@ -15,11 +15,11 @@ import (
 const GeneratorName = "github.com/alextanhongpin/mapper"
 
 func main() {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(err)
-		}
-	}()
+	//defer func() {
+	//if err := recover(); err != nil {
+	//fmt.Println(err)
+	//}
+	//}()
 
 	if err := mapper.New(func(opt mapper.Option) error {
 		gen := NewGenerator(opt)
@@ -202,6 +202,11 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		dict          = make(Dict)
 	)
 
+	// Since our private mapper does not have knowledge of error,
+	// we need to set it manually.
+	normFn := fn.Normalize()
+	normFn.Error = methodInfo.HasError()
+
 	// Loop through all the target keys.
 	structFields := mapper.NewStructFields(to.Type).WithTags()
 	keys := generateSortedStructFields(structFields)
@@ -210,6 +215,9 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		var r internal.Resolver
 		// The RHS struct field.
 		to := structFields[key]
+		if to.Tag != nil && to.Tag.IsAlias() {
+			key = to.Tag.Name
+		}
 
 		// If LHS field matches the RHS field ...
 		if field, ok := methodInfo.Param.FieldByName(key); ok {
@@ -260,7 +268,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			a0Selection = r.RhsVar
 		)
 
-		funcBuilder := internal.NewFuncBuilder(r, fn)
+		funcBuilder := internal.NewFuncBuilder(r, normFn)
 
 		if r.IsMethod() {
 			// IS METHOD
@@ -386,11 +394,6 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		dict[bName()] = a0Selection()
 	}
 
-	// Since our private mapper does not have knowledge of error,
-	// we need to set it manually.
-	normFn := fn.Normalize()
-	normFn.Error = methodInfo.HasError()
-
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)).                         // (c *Converter)
 		Id(fnName).                                                            // mapMainAToMainB
@@ -474,24 +477,10 @@ func buildFnSignature(lhs, rhs types.Type) string {
 }
 
 func generateSortedStructFields(fields mapper.StructFields) []string {
-	type fieldPos struct {
-		key string
-		pos int
+	var result []string
+	for key := range fields {
+		result = append(result, key)
 	}
-	var tmp []fieldPos
-	for key, field := range fields {
-		tmp = append(tmp, fieldPos{
-			pos: field.Ordinal,
-			key: key,
-		})
-	}
-	sort.Slice(tmp, func(i, j int) bool {
-		return tmp[i].pos < tmp[j].pos
-	})
-
-	result := make([]string, len(tmp))
-	for i, fieldPos := range tmp {
-		result[i] = fieldPos.key
-	}
+	sort.Strings(result)
 	return result
 }

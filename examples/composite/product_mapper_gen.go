@@ -9,13 +9,23 @@ func NewProductMapperImpl() *ProductMapperImpl {
 	return &ProductMapperImpl{}
 }
 
-func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(p0 Products) ProductSummary {
-	p0Items := CountItems(p0.Items)
-	return ProductSummary{TotalCount: p0Items}
+func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(p0 Products) (ProductSummary, error) {
+	p0Items, err := IsValidStatus(p0.Items)
+	if err != nil {
+		return ProductSummary{}, err
+	}
+	p0TotalCount := CountItems(p0.Items)
+	return ProductSummary{
+		Items:      p0Items,
+		TotalCount: p0TotalCount,
+	}, nil
 }
 
-func (p *ProductMapperImpl) ProductToProductSummary(p0 Products) *ProductSummary {
-	p1 := p.mapMainProductsToMainProductSummary(p0)
+func (p *ProductMapperImpl) ProductToProductSummary(p0 Products) (*ProductSummary, error) {
+	p1, err := p.mapMainProductsToMainProductSummary(p0)
+	if err != nil {
+		return nil, err
+	}
 	p2 := &p1
-	return p2
+	return p2, nil
 }

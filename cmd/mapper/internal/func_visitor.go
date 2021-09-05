@@ -109,7 +109,10 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 	// checkFuncMissingError
 	if resultVisitor.HasError() && !hasError {
 		// Invalid error signature
-		panic("error not implemented")
+		panic(PrettyError(`
+			function %q is missing error return
+			hint: add error return
+		`, PrettyFuncSignature(fn)))
 	}
 
 	// checkTypesMatchs

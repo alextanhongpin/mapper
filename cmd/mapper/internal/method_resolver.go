@@ -40,6 +40,13 @@ func (f MethodResolver) Lhs() interface{} {
 	return f.lhs
 }
 
+func (f MethodResolver) fieldName() string {
+	if f.rhs.Tag != nil && f.rhs.Tag.IsAlias() {
+		return f.rhs.Name
+	}
+	return f.lhs.Name
+}
+
 func (f MethodResolver) Rhs() mapper.StructField {
 	return f.rhs
 }
@@ -47,7 +54,7 @@ func (f MethodResolver) Rhs() mapper.StructField {
 func (f MethodResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name)
+	return jen.Id(argsWithIndex(f.name, f.count) + f.fieldName())
 }
 
 func (f MethodResolver) RhsVar() *jen.Statement {
@@ -58,7 +65,7 @@ func (f MethodResolver) RhsVar() *jen.Statement {
 	}
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1) + f.lhs.Name)
+	return jen.Id(argsWithIndex(f.name, f.count-1) + f.fieldName())
 }
 
 func (f MethodResolver) LhsType() *jen.Statement {

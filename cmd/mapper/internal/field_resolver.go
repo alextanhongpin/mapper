@@ -30,10 +30,34 @@ func (f FieldResolver) Rhs() mapper.StructField {
 	return f.rhs
 }
 
+/*
+	NOTE: For scenario with similar alias.
+
+	type ProductMapper interface {
+		ProductToProductSummary(Products) (*ProductSummary, error)
+	}
+
+	type Products struct {
+		Items []int64
+	}
+
+	// Both are referring to items.
+	type ProductSummary struct {
+		Items      bool  `map:",IsValidStatus"`
+		TotalCount int64 `map:"Items,CountItems"`
+	}
+*/
+func (f FieldResolver) fieldName() string {
+	if f.rhs.Tag != nil && f.rhs.Tag.IsAlias() {
+		return f.rhs.Name
+	}
+	return f.lhs.Name
+}
+
 func (f FieldResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.lhs.Name)
+	return jen.Id(argsWithIndex(f.name, f.count) + f.fieldName())
 }
 
 func (f FieldResolver) RhsVar() *jen.Statement {
@@ -44,7 +68,7 @@ func (f FieldResolver) RhsVar() *jen.Statement {
 	}
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1) + f.lhs.Name)
+	return jen.Id(argsWithIndex(f.name, f.count-1) + f.fieldName())
 }
 
 func (f FieldResolver) LhsType() *jen.Statement {

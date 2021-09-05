@@ -1,6 +1,8 @@
 package mapper
 
-import "go/types"
+import (
+	"go/types"
+)
 
 // StructField for the example below.
 //type Foo struct {
@@ -27,9 +29,31 @@ func (s StructFields) WithTags() StructFields {
 			if tag.Ignore {
 				continue
 			}
-			if tag.IsAlias() {
-				key = tag.Name
-			}
+			// NOTE: This does not work if there are multiple
+			// alias refering to the same field.
+			//
+			/*
+
+				type ProductMapper interface {
+					ProductToProductSummary(Products) (*ProductSummary, error)
+				}
+
+				type Products struct {
+					Items []int64
+				}
+
+				// Both are referring to items.
+				type ProductSummary struct {
+					Items      bool  `map:",IsValidStatus"`
+					TotalCount int64 `map:"Items,CountItems"`
+				}
+			*/
+			//if tag.IsAlias() {
+			//key = tag.Name
+			//}
+		}
+		if _, exists := result[key]; exists {
+			panic("duplicate key " + key)
 		}
 		result[key] = val
 	}

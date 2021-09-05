@@ -12,13 +12,13 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
+	a1NonPtrToPointer := &a0NonPtrToPointer
 	var a0Ptr *D
 	if a0.Ptr != nil {
 		tmp := m.mapMainCToMainD(*a0.Ptr)
 		a0Ptr = &tmp
 	}
-	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
-	a1NonPtrToPointer := &a0NonPtrToPointer
 	return B{
 		Bool:            a0.Bool,
 		ID:              a0.ID,

@@ -17,6 +17,8 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
+	a0AliasID := IntToString(a0.ID)
+	a0ExternalID := examples.IntToString(a0.ExternalID)
 	a0ID := IntToString(a0.ID)
 	var a0IDs []uuid.UUID
 	for _, each := range a0.IDs {
@@ -26,7 +28,6 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		}
 		a0IDs = append(a0IDs, tmp)
 	}
-	a0ExternalID := examples.IntToString(a0.ExternalID)
 	var a0Nums []int
 	for _, each := range a0.Nums {
 		tmp, err := strconv.Atoi(each)
@@ -35,20 +36,21 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 		}
 		a0Nums = append(a0Nums, tmp)
 	}
-	a0UUID, err := uuid.Parse(a0.UUID)
-	if err != nil {
-		return B{}, err
+	var a0PtrString sql.NullString
+	if a0.PtrString != nil {
+		a0PtrString = PointerStringToNullString(a0.PtrString)
 	}
 	a0Remarks := NullStringToPointer(a0.Remarks)
 	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
 	if err != nil {
 		return B{}, err
 	}
-	var a0PtrString sql.NullString
-	if a0.PtrString != nil {
-		a0PtrString = PointerStringToNullString(a0.PtrString)
+	a0UUID, err := uuid.Parse(a0.UUID)
+	if err != nil {
+		return B{}, err
 	}
 	return B{
+		AliasID:      a0AliasID,
 		ExternalID:   a0ExternalID,
 		ID:           a0ID,
 		IDs:          a0IDs,

@@ -47,8 +47,12 @@ func (v *InterfaceVisitor) parseMethods() {
 		// checkFieldsHasMappings
 		for _, name := range result.Fields() {
 			rhs, _ := result.FieldByName(name)
-			_, hasField := param.FieldByName(name)
-			_, hasMethod := param.MethodByName(name)
+			key := name
+			if rhs.Tag != nil && rhs.Tag.IsAlias() {
+				key = rhs.Tag.Name
+			}
+			_, hasField := param.FieldByName(key)
+			_, hasMethod := param.MethodByName(key)
 
 			if !(hasField || hasMethod) {
 				panic(fmt.Errorf("no mapping found for %q", name))
@@ -73,6 +77,10 @@ func (v *InterfaceVisitor) parseMethods() {
 
 		for _, name := range result.Fields() {
 			rhs, _ := result.FieldByName(name)
+			if rhs.Tag != nil && rhs.Tag.IsAlias() {
+				name = rhs.Tag.Name
+			}
+
 			field, isField := param.FieldByName(name)
 			method, _ := param.MethodByName(name)
 

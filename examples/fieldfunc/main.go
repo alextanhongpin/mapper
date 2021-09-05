@@ -41,6 +41,9 @@ type B struct {
 	// Defining local function to perform field conversion.
 	ID string `map:",IntToString"`
 
+	// Another field, referring to the same source field.
+	AliasID string `map:"ID,IntToString"`
+
 	// Automatically maps if the input and output are both collection.
 	IDs []uuid.UUID `map:",github.com/google/uuid/Parse"`
 
