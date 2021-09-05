@@ -28,136 +28,55 @@ func Walk(visitor Visitor, T types.Type) bool {
 		return types.IdenticalIgnoreTags(T, u)
 	}
 }
-
-type Type struct {
-	Type         string `example:"NullString"`
-	Pkg          string `example:"sql"`
-	PkgPath      string `example:"database/sql"`
-	IsStruct     bool
-	IsPointer    bool
-	IsArray      bool // Whether it's an array or slice.
-	IsInterface  bool
-	IsSlice      bool
-	IsError      bool
-	IsMap        bool
-	MapKey       *Type
-	MapValue     *Type
-	StructFields StructFields
-	ObjPkg       *types.Package
-	T            types.Type
-	E            types.Type
+func IsPointer(T types.Type) bool {
+	_, ok := T.(*types.Pointer)
+	return ok
 }
 
-// NewType recursively checks for the field type.
-func NewType(fullType types.Type) *Type {
-	var isPointer, isInterface, isArray, isSlice, isMap, isStruct, isError bool
-	var fieldPkgPath, fieldPkg, fieldType string
-	var mapKey, mapValue *Type
-	var structFields map[string]StructField
-	var objPkg *types.Package
-	typ := fullType
+func IsStruct(T types.Type) bool {
+	_, ok := T.Underlying().(*types.Struct)
+	return ok
+}
 
-	switch t := typ.(type) {
-	case *types.Interface:
-		isInterface = true
-	case *types.Pointer:
-		isPointer = true
-		typ = t.Elem()
-	}
+func IsSlice(T types.Type) bool {
+	_, ok := T.(*types.Slice)
+	return ok
+}
 
-	switch t := typ.(type) {
-	case *types.Slice:
-		isSlice = true
-		typ = t.Elem()
-	case *types.Array:
-		isArray = true
-		typ = t.Elem()
-	case *types.Map:
-		isMap = true
-		mapKey = NewType(t.Key())
-		mapValue = NewType(t.Elem())
-	}
+type UnderlyingVisitor struct {
+	u types.Type
+}
 
-	// In case the slice or array is pointer, we take the elem again.
-	switch t := typ.(type) {
-	case *types.Pointer:
-		isPointer = true
-		typ = t.Elem()
-	}
-
-	switch t := typ.(type) {
-	case *types.Named:
-		obj := t.Obj()
-		objPkg = obj.Pkg()
-		if pkg := obj.Pkg(); pkg != nil {
-			fieldPkg = pkg.Name()
-			fieldPkgPath = pkg.Path()
-		}
-		fieldType = obj.Name()
-
-		// The underlying type could be a struct.
-		if structType, ok := obj.Type().Underlying().(*types.Struct); ok {
-			isStruct = true
-			structFields = ExtractStructFields(structType)
-		}
-
-		// The underlying type could be a interface.
-		if types.IsInterface(obj.Type().Underlying()) {
-			isInterface = true
-		}
-	case *types.Struct:
-		isStruct = true
-		structFields = ExtractStructFields(t)
+func (v *UnderlyingVisitor) Visit(T types.Type) bool {
+	switch u := T.(type) {
+	case *types.Named, *types.Map, *types.Basic, *types.Struct:
+		v.u = u
+		return false
 	default:
-		fieldType = t.String()
-	}
-
-	isError = fieldType == "error"
-	return &Type{
-		Type:         fieldType,
-		Pkg:          fieldPkg,
-		PkgPath:      fieldPkgPath,
-		ObjPkg:       objPkg,
-		IsStruct:     isStruct,
-		IsSlice:      isSlice,
-		IsArray:      isArray,
-		IsPointer:    isPointer,
-		IsMap:        isMap,
-		IsInterface:  isInterface,
-		IsError:      isError,
-		MapKey:       mapKey,
-		MapValue:     mapValue,
-		StructFields: structFields,
-		T:            fullType,
-		E:            typ,
+		return true
 	}
 }
 
-func (t Type) Normalize() *Type {
-	return &Type{
-		Type:         t.Type,
-		Pkg:          t.Pkg,
-		PkgPath:      t.PkgPath,
-		StructFields: t.StructFields,
-		T:            t.T,
-		E:            t.E,
-	}
+// NewUnderlyingType extracts the underlying type of a Type.
+func NewUnderlyingType(T types.Type) types.Type {
+	v := &UnderlyingVisitor{}
+	_ = Walk(v, T)
+	return v.u
 }
 
-// Signature is used to compare if two types are equal.
-func (t Type) Signature() string {
-	return types.TypeString(t.T, nil)
+func IsUnderlyingError(T types.Type) bool {
+	U := NewUnderlyingType(T)
+	return U.String() == "error"
 }
 
-func (t Type) Equal(other *Type) bool {
-	return t.Signature() == other.Signature()
+func IsUnderlyingIdentical(lhs, rhs types.Type) bool {
+	return UnderlyingSignature(lhs) == UnderlyingSignature(rhs)
 }
 
-// EqualElem checks if the type a.A, regardless of whether
-// it is pointer, slice etc, matches type b.B.
-// The elem is only considered the same if they reside in
-// the same pkg.
-// So a.A is not the same as b.A even if both A has same types.
-func (t Type) EqualElem(other *Type) bool {
-	return types.TypeString(t.E, nil) == types.TypeString(other.E, nil)
+func UnderlyingSignature(T types.Type) string {
+	return types.TypeString(NewUnderlyingType(T), nil)
+}
+
+func IsIdentical(lhs, rhs types.Type) bool {
+	return types.TypeString(lhs, nil) == types.TypeString(rhs, nil)
 }

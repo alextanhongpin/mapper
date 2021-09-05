@@ -15,16 +15,7 @@ func GenInputType(arg *Statement, fn *mapper.Func) *Statement {
 	// Output:
 	//
 	// (a0 ...a.A)
-	return arg.Do(func(s *Statement) {
-		if fn.From.Variadic {
-			s.Add(Op("..."))
-		} else if fn.From.Type.IsSlice {
-			s.Add(Index())
-		}
-		if fn.From.Type.IsPointer {
-			s.Add(Op("*"))
-		}
-	}).Add(GenTypeName(fn.From.Type))
+	return arg.Add(GenerateInputType(fn.From.Type, fn.From.Variadic))
 }
 
 func GenReturnType(fn *mapper.Func) *Statement {
@@ -45,13 +36,6 @@ func GenReturnValue(fn *mapper.Func) *Statement {
 		// if err != nil {
 		//   return &B{}, err
 		// }
-		out := fn.To.Type
-		g.Add(List(Do(func(s *Statement) {
-			if out.IsPointer || out.IsSlice {
-				s.Add(Nil())
-			} else {
-				s.Add(GenTypeName(out)).Values()
-			}
-		}), Err()))
+		g.Add(GenerateOutputType(fn.To.Type, fn.Error))
 	}))
 }

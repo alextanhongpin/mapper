@@ -9,12 +9,12 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0CustomStatus := a0.CustomStatus()
-	return B{Status: a0CustomStatus}
+func (m *MapperImpl) mapMainAToMainB(g0 A) B {
+	g0CustomStatus := g0.CustomStatus()
+	return B{Status: g0CustomStatus}
 }
 
-func (m *MapperImpl) AtoB(a0A A) B {
-	a1A := m.mapMainAToMainB(a0A)
-	return a1A
+func (m *MapperImpl) AtoB(g0 A) B {
+	g1 := m.mapMainAToMainB(g0)
+	return g1
 }

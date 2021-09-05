@@ -11,52 +11,52 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) B {
-	a0Status := a0.Status()
-	a1Status := StatusToString(a0Status)
+func (m *MapperImpl) mapMainAToMainB(g0 A) B {
+	g0Status := g0.Status()
+	g1Status := StatusToString(g0Status)
 	return B{
-		Bool:   a0.Bool(),
-		ID:     a0.ID(),
-		Map:    a0.Map(),
-		Slice:  a0.Slice(),
-		Status: a1Status,
-		Str:    a0.Str(),
-		Time:   a0.Time(),
+		Bool:   g0.Bool(),
+		ID:     g0.ID(),
+		Map:    g0.Map(),
+		Slice:  g0.Slice(),
+		Status: g1Status,
+		Str:    g0.Str(),
+		Time:   g0.Time(),
 	}
 }
 
-func (m *MapperImpl) mapMainCToMainD(c0 C) (D, error) {
-	c0ID, err := c0.ID()
+func (m *MapperImpl) mapMainCToMainD(g0 C) (D, error) {
+	g0ID, err := g0.ID()
 	if err != nil {
 		return D{}, err
 	}
-	return D{ID: c0ID}, nil
+	return D{ID: g0ID}, nil
 }
 
-func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
+func (m *MapperImpl) mapExamplesAToExamplesB(g0 examples.A) examples.B {
 	return examples.B{
-		Bool:  a0.Bool,
-		ID:    a0.ID,
-		Map:   a0.Map,
-		Slice: a0.Slice,
-		Str:   a0.Str,
+		Bool:  g0.Bool,
+		ID:    g0.ID,
+		Map:   g0.Map,
+		Slice: g0.Slice,
+		Str:   g0.Str,
 	}
 }
 
-func (m *MapperImpl) AtoB(a0A A) B {
-	a1A := m.mapMainAToMainB(a0A)
-	return a1A
+func (m *MapperImpl) AtoB(g0 A) B {
+	g1 := m.mapMainAToMainB(g0)
+	return g1
 }
 
-func (m *MapperImpl) CtoD(c0C C) (D, error) {
-	c1C, err := m.mapMainCToMainD(c0C)
+func (m *MapperImpl) CtoD(g0 C) (D, error) {
+	g1, err := m.mapMainCToMainD(g0)
 	if err != nil {
 		return D{}, err
 	}
-	return c1C, nil
+	return g1, nil
 }
 
-func (m *MapperImpl) ExternalAtoB(a0A examples.A) examples.B {
-	a1A := m.mapExamplesAToExamplesB(a0A)
-	return a1A
+func (m *MapperImpl) ExternalAtoB(g0 examples.A) examples.B {
+	g1 := m.mapExamplesAToExamplesB(g0)
+	return g1
 }

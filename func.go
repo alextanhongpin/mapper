@@ -11,14 +11,22 @@ import (
 
 type FuncArg struct {
 	Name     string
-	Type     *Type
+	Type     types.Type
+	Obj      *types.TypeName
 	Variadic bool
 }
 
-func NewFuncArg(name string, T *Type, variadic bool) *FuncArg {
+func NewFuncArg(name string, T types.Type, variadic bool) *FuncArg {
+	var obj *types.TypeName
+	named, ok := T.(*types.Named)
+	if ok {
+		obj = named.Obj()
+	}
+
 	return &FuncArg{
 		Name:     name,
 		Type:     T,
+		Obj:      obj,
 		Variadic: variadic,
 	}
 }
@@ -48,10 +56,10 @@ func NewFunc(fn *types.Func) *Func {
 	var from, to *FuncArg
 	if sig.Params().Len() > 0 {
 		param := sig.Params().At(0)
-		T := NewType(param.Type())
+		T := param.Type()
 		name := param.Name()
 		if name == "" {
-			name = ShortName(T.Type)
+			name = ShortName(NewUnderlyingType(T).String())
 		}
 		from = NewFuncArg(name, T, sig.Variadic())
 	}
@@ -60,16 +68,17 @@ func NewFunc(fn *types.Func) *Func {
 	if n := sig.Results().Len(); n > 0 {
 		result := sig.Results().At(0)
 
-		T := NewType(result.Type())
+		T := result.Type()
 		name := result.Name()
 		if name == "" {
-			name = ShortName(T.Type)
+			name = ShortName(NewUnderlyingType(T).String())
 		}
 		to = NewFuncArg(name, T, sig.Variadic())
 
 		// Allow errors as second return value.
 		if n > 1 {
-			if errType := NewType(sig.Results().At(1).Type()); errType.IsError {
+			T := sig.Results().At(1).Type()
+			if T.String() == "error" {
 				hasError = true
 			} else {
 				fnstr := strings.ReplaceAll(types.TypeString(sig, (*types.Package).Name), "func", fmt.Sprintf("func %s", fn.Name()))
@@ -77,7 +86,7 @@ func NewFunc(fn *types.Func) *Func {
 hint: second return type must be error
 help: replace %q with %q`,
 					fnstr,
-					sig.Results().At(1).Type(),
+					T,
 					"error",
 				))
 			}
@@ -102,7 +111,9 @@ help: replace %q with %q`,
 }
 
 func (f *Func) normalizedArg(arg *FuncArg) string {
-	_, s := path.Split(fmt.Sprintf("%s%s", UpperCommonInitialism(arg.Type.Pkg), arg.Type.Type))
+	_, s := path.Split(types.TypeString(NewUnderlyingType(arg.Type), (*types.Package).Name))
+	s = UpperCommonInitialism(s)
+	s = strings.ReplaceAll(s, ".", "")
 	return s
 }
 
@@ -131,13 +142,13 @@ func (f *Func) Normalize() *Func {
 }
 
 // RequiresInputPointer returns true if the input needs to be converted into a pointer.
-func (f *Func) RequiresInputPointer(in *Type) bool {
-	return !in.IsPointer && f.From.Type.IsPointer
+func (f *Func) RequiresInputPointer(in types.Type) bool {
+	return !IsPointer(in) && IsPointer(f.From.Type)
 }
 
 // RequiresInputValue returns true if the input needs to be converted into a value.
-func (f *Func) RequiresInputValue(in *Type) bool {
-	return in.IsPointer && !f.From.Type.IsPointer
+func (f *Func) RequiresInputValue(in types.Type) bool {
+	return IsPointer(in) && !IsPointer(f.From.Type)
 }
 
 // NormFunc generates a new func with the normalize type -
@@ -145,19 +156,44 @@ func (f *Func) RequiresInputValue(in *Type) bool {
 func NormFunc(name string, fn *types.Func) *types.Func {
 	fullSignature := fn.Type().Underlying().(*types.Signature)
 
-	param := NewType(fullSignature.Params().At(0).Type())
-	params := types.NewTuple(types.NewVar(token.NoPos, param.ObjPkg, "", param.E))
+	param := fullSignature.Params().At(0).Type()
 
-	result := NewType(fullSignature.Results().At(0).Type())
-	results := types.NewTuple(types.NewVar(token.NoPos, result.ObjPkg, "", result.E))
+	result := fullSignature.Results().At(0).Type()
+
+	var paramPkg *types.Package
+	namedParam, ok := param.(*types.Named)
+	if ok {
+		paramPkg = namedParam.Obj().Pkg()
+	}
+
+	var resultPkg *types.Package
+	namedParam, ok = result.(*types.Named)
+	if ok {
+		resultPkg = namedParam.Obj().Pkg()
+	}
+
+	params := types.NewTuple(types.NewVar(token.NoPos, paramPkg, "", NewUnderlyingType(param)))
+	results := types.NewTuple(types.NewVar(token.NoPos, resultPkg, "", NewUnderlyingType(result)))
 
 	sig := types.NewSignature(nil, params, results, false)
 	return types.NewFunc(token.NoPos, nil, name, sig)
 }
 
-func NormFuncFromTypes(param, result *Type) *types.Func {
-	params := types.NewTuple(types.NewVar(token.NoPos, param.ObjPkg, "", param.E))
-	results := types.NewTuple(types.NewVar(token.NoPos, result.ObjPkg, "", result.E))
+func NormFuncFromTypes(param, result types.Type) *types.Func {
+	var paramPkg *types.Package
+	namedParam, ok := param.(*types.Named)
+	if ok {
+		paramPkg = namedParam.Obj().Pkg()
+	}
+
+	var resultPkg *types.Package
+	namedParam, ok = result.(*types.Named)
+	if ok {
+		resultPkg = namedParam.Obj().Pkg()
+	}
+
+	params := types.NewTuple(types.NewVar(token.NoPos, paramPkg, "", param))
+	results := types.NewTuple(types.NewVar(token.NoPos, resultPkg, "", result))
 
 	sig := types.NewSignature(nil, params, results, false)
 	return types.NewFunc(token.NoPos, nil, "", sig)

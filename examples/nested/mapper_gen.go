@@ -11,48 +11,48 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) Book {
-	b0Price := m.mapExamplesPriceToMainPrice(b0.Price)
-	b1Price := &b0Price
+func (m *MapperImpl) mapExamplesBookToMainBook(g0 examples.Book) Book {
+	g0Price := m.mapExamplesPriceToMainPrice(g0.Price)
+	g1Price := &g0Price
 	return Book{
-		ID:     b0.ID,
-		Price:  b1Price,
-		Title:  b0.Title,
-		UserID: b0.UserID,
+		ID:     g0.ID,
+		Price:  g1Price,
+		Title:  g0.Title,
+		UserID: g0.UserID,
 	}
 }
 
-func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
+func (m *MapperImpl) mapExamplesPriceToMainPrice(g0 examples.Price) Price {
 	return Price{
-		Amount:   p0.Amount,
-		Currency: &p0.Currency,
+		Amount:   g0.Amount,
+		Currency: &g0.Currency,
 	}
 }
 
-func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) User {
-	u0Books := make([]Book, len(u0.Books))
-	for i, each := range u0.Books {
-		u0Books[i] = m.mapExamplesBookToMainBook(each)
+func (m *MapperImpl) mapExamplesUserToMainUser(g0 examples.User) User {
+	g0Books := make([]Book, len(g0.Books))
+	for i, each := range g0.Books {
+		g0Books[i] = m.mapExamplesBookToMainBook(each)
 	}
 	return User{
-		Books: u0Books,
-		ID:    u0.ID,
-		Name:  u0.Name,
+		Books: g0Books,
+		ID:    g0.ID,
+		Name:  g0.Name,
 	}
 }
 
-func (m *MapperImpl) ConvertBook(b0Book examples.Book) (Book, error) {
-	b1Book := m.mapExamplesBookToMainBook(b0Book)
-	return b1Book, nil
+func (m *MapperImpl) ConvertBook(g0 examples.Book) (Book, error) {
+	g1 := m.mapExamplesBookToMainBook(g0)
+	return g1, nil
 }
 
-func (m *MapperImpl) ConvertPrice(p0Price examples.Price) *Price {
-	p1Price := m.mapExamplesPriceToMainPrice(p0Price)
-	p2Price := &p1Price
-	return p2Price
+func (m *MapperImpl) ConvertPrice(g0 examples.Price) *Price {
+	g1 := m.mapExamplesPriceToMainPrice(g0)
+	g2 := &g1
+	return g2
 }
 
-func (m *MapperImpl) ConvertUser(u0User examples.User) (User, error) {
-	u1User := m.mapExamplesUserToMainUser(u0User)
-	return u1User, nil
+func (m *MapperImpl) ConvertUser(g0 examples.User) (User, error) {
+	g1 := m.mapExamplesUserToMainUser(g0)
+	return g1, nil
 }

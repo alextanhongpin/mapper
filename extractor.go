@@ -67,7 +67,7 @@ func ExtractStructFields(structType *types.Struct) StructFields {
 			PkgPath:  field.Pkg().Path(),
 			Exported: field.Exported(),
 			Tag:      tag,
-			Type:     NewType(field.Type()),
+			Type:     field.Type(),
 			Var:      field,
 			Ordinal:  i,
 		}

@@ -72,7 +72,7 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 					return age, nil
 				}
 			*/
-			if !IsUnderlyingIdentical(m.To.Type.T, field.T) {
+			if !mapper.IsUnderlyingIdentical(m.To.Type, field.Type) {
 				panic("not equal type")
 			}
 		}

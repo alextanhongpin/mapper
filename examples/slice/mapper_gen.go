@@ -11,59 +11,59 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+func (m *MapperImpl) mapMainAToMainB(g0 A) B {
 	return B{
-		Bool:  a0.Bool,
-		ID:    a0.ID,
-		Map:   a0.Map,
-		Slice: a0.Slice,
-		Str:   a0.Str,
+		Bool:  g0.Bool,
+		ID:    g0.ID,
+		Map:   g0.Map,
+		Slice: g0.Slice,
+		Str:   g0.Str,
 	}
 }
 
-func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
+func (m *MapperImpl) mapExamplesAToExamplesB(g0 examples.A) examples.B {
 	return examples.B{
-		Bool:  a0.Bool,
-		ID:    a0.ID,
-		Map:   a0.Map,
-		Slice: a0.Slice,
-		Str:   a0.Str,
+		Bool:  g0.Bool,
+		ID:    g0.ID,
+		Map:   g0.Map,
+		Slice: g0.Slice,
+		Str:   g0.Str,
 	}
 }
 
-func (m *MapperImpl) AtoB(a0A A) B {
-	a1A := m.mapMainAToMainB(a0A)
-	return a1A
+func (m *MapperImpl) AtoB(g0 A) B {
+	g1 := m.mapMainAToMainB(g0)
+	return g1
 }
 
-func (m *MapperImpl) ExternalAtoB(a0A []examples.A) []examples.B {
-	a1A := make([]examples.B, len(a0A))
-	for i, each := range a0A {
-		a1A[i] = m.mapExamplesAToExamplesB(each)
+func (m *MapperImpl) ExternalAtoB(g0 []examples.A) []examples.B {
+	g1 := make([]examples.B, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapExamplesAToExamplesB(each)
 	}
-	return a1A
+	return g1
 }
 
-func (m *MapperImpl) SliceAtoB(a0A []A) []B {
-	a1A := make([]B, len(a0A))
-	for i, each := range a0A {
-		a1A[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) SliceAtoB(g0 []A) []B {
+	g1 := make([]B, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapMainAToMainB(each)
 	}
-	return a1A
+	return g1
 }
 
-func (m *MapperImpl) Variadic(a0A ...A) []B {
-	a1A := make([]B, len(a0A))
-	for i, each := range a0A {
-		a1A[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) Variadic(g0 ...A) []B {
+	g1 := make([]B, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapMainAToMainB(each)
 	}
-	return a1A
+	return g1
 }
 
-func (m *MapperImpl) VariadicError(a0A ...A) ([]B, error) {
-	a1A := make([]B, len(a0A))
-	for i, each := range a0A {
-		a1A[i] = m.mapMainAToMainB(each)
+func (m *MapperImpl) VariadicError(g0 ...A) ([]B, error) {
+	g1 := make([]B, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapMainAToMainB(each)
 	}
-	return a1A, nil
+	return g1, nil
 }

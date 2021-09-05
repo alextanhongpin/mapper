@@ -1,26 +1,23 @@
 package internal
 
 import (
-	"github.com/alextanhongpin/mapper"
+	"go/types"
+
 	"github.com/dave/jennifer/jen"
 )
 
 // GenTypeName generates the element type.
-func GenTypeName(T *mapper.Type) *jen.Statement {
-	if T.PkgPath != "" {
-		return jen.Qual(T.PkgPath, T.Type)
+func GenTypeName(T types.Type) *jen.Statement {
+	U := NewUnderlyingType(T)
+	switch u := U.(type) {
+	case *types.Named:
+		return jen.Qual(u.Obj().Pkg().Path(), u.Obj().Name())
+	default:
+		return jen.Id(u.String())
 	}
-	return jen.Id(T.Type)
 }
 
 // GenType generates the basic type.
-func GenType(T *mapper.Type) *jen.Statement {
-	return jen.Do(func(s *jen.Statement) {
-		if T.IsSlice {
-			s.Add(jen.Index())
-		}
-		if T.IsPointer {
-			s.Add(jen.Op("*"))
-		}
-	}).Add(GenTypeName(T))
+func GenType(T types.Type) *jen.Statement {
+	return GenerateType(T)
 }

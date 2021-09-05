@@ -16,129 +16,129 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
-	a0ExternalID := examples.IntToString(a0.ExternalID)
-	a0ID := IntToString(a0.ID)
-	var a0IDs []uuid.UUID
-	for _, each := range a0.IDs {
+func (m *MapperImpl) mapMainAToMainB(g0 A) (B, error) {
+	g0ExternalID := examples.IntToString(g0.ExternalID)
+	g0ID := IntToString(g0.ID)
+	var g0IDs []uuid.UUID
+	for _, each := range g0.IDs {
 		tmp, err := uuid.Parse(each)
 		if err != nil {
 			return B{}, err
 		}
-		a0IDs = append(a0IDs, tmp)
+		g0IDs = append(g0IDs, tmp)
 	}
-	var a0Nums []int
-	for _, each := range a0.Nums {
+	var g0Nums []int
+	for _, each := range g0.Nums {
 		tmp, err := strconv.Atoi(each)
 		if err != nil {
 			return B{}, err
 		}
-		a0Nums = append(a0Nums, tmp)
+		g0Nums = append(g0Nums, tmp)
 	}
-	var a0PtrString sql.NullString
-	if a0.PtrString != nil {
-		a0PtrString = PointerStringToNullString(a0.PtrString)
+	var g0PtrString sql.NullString
+	if g0.PtrString != nil {
+		g0PtrString = PointerStringToNullString(g0.PtrString)
 	}
-	a0Remarks := NullStringToPointer(a0.Remarks)
-	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
+	g0Remarks := NullStringToPointer(g0.Remarks)
+	g0RemarksError, err := NullStringToPointerError(g0.RemarksError)
 	if err != nil {
 		return B{}, err
 	}
-	a0UUID, err := uuid.Parse(a0.UUID)
+	g0UUID, err := uuid.Parse(g0.UUID)
 	if err != nil {
 		return B{}, err
 	}
 	return B{
-		ExternalID:   a0ExternalID,
-		ID:           a0ID,
-		IDs:          a0IDs,
-		Nums:         a0Nums,
-		PtrString:    a0PtrString,
-		Remarks:      a0Remarks,
-		RemarksError: a0RemarksError,
-		UUID:         a0UUID,
+		ExternalID:   g0ExternalID,
+		ID:           g0ID,
+		IDs:          g0IDs,
+		Nums:         g0Nums,
+		PtrString:    g0PtrString,
+		Remarks:      g0Remarks,
+		RemarksError: g0RemarksError,
+		UUID:         g0UUID,
 	}, nil
 }
 
-func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomField) (CustomField, error) {
-	c0Num, err := StringToInt(c0.Num)
+func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(g0 examples.CustomField) (CustomField, error) {
+	g0Num, err := StringToInt(g0.Num)
 	if err != nil {
 		return CustomField{}, err
 	}
-	return CustomField{Num: c0Num}, nil
+	return CustomField{Num: g0Num}, nil
 }
 
-func (m *MapperImpl) mapMainCToMainD(c0 C) D {
-	c0ID := IntToString(c0.ID)
-	return D{ID: c0ID}
+func (m *MapperImpl) mapMainCToMainD(g0 C) D {
+	g0ID := IntToString(g0.ID)
+	return D{ID: g0ID}
 }
 
-func (m *MapperImpl) AtoB(a0A A) (B, error) {
-	a1A, err := m.mapMainAToMainB(a0A)
+func (m *MapperImpl) AtoB(g0 A) (B, error) {
+	g1, err := m.mapMainAToMainB(g0)
 	if err != nil {
 		return B{}, err
 	}
-	return a1A, nil
+	return g1, nil
 }
 
-func (m *MapperImpl) ConvertImportedFunc(c0CustomField examples.CustomField) (CustomField, error) {
-	c1CustomField, err := m.mapExamplesCustomFieldToMainCustomField(c0CustomField)
+func (m *MapperImpl) ConvertImportedFunc(g0 examples.CustomField) (CustomField, error) {
+	g1, err := m.mapExamplesCustomFieldToMainCustomField(g0)
 	if err != nil {
 		return CustomField{}, err
 	}
-	return c1CustomField, nil
+	return g1, nil
 }
 
-func (m *MapperImpl) ConvertImportedFuncPointer(c0CustomField examples.CustomField) (*CustomField, error) {
-	c1CustomField, err := m.mapExamplesCustomFieldToMainCustomField(c0CustomField)
+func (m *MapperImpl) ConvertImportedFuncPointer(g0 examples.CustomField) (*CustomField, error) {
+	g1, err := m.mapExamplesCustomFieldToMainCustomField(g0)
 	if err != nil {
 		return nil, err
 	}
-	c2CustomField := &c1CustomField
-	return c2CustomField, nil
+	g2 := &g1
+	return g2, nil
 }
 
-func (m *MapperImpl) CtoD(c0C C) D {
-	c1C := m.mapMainCToMainD(c0C)
-	return c1C
+func (m *MapperImpl) CtoD(g0 C) D {
+	g1 := m.mapMainCToMainD(g0)
+	return g1
 }
 
-func (m *MapperImpl) SliceAtoB(a0A []A) ([]B, error) {
-	var a1A []B
-	for _, each := range a0A {
+func (m *MapperImpl) SliceAtoB(g0 []A) ([]B, error) {
+	var g1 []B
+	for _, each := range g0 {
 		tmp, err := m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
-		a1A = append(a1A, tmp)
+		g1 = append(g1, tmp)
 	}
-	return a1A, nil
+	return g1, nil
 }
 
-func (m *MapperImpl) SliceCtoD(c0C []C) []D {
-	c1C := make([]D, len(c0C))
-	for i, each := range c0C {
-		c1C[i] = m.mapMainCToMainD(each)
+func (m *MapperImpl) SliceCtoD(g0 []C) []D {
+	g1 := make([]D, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapMainCToMainD(each)
 	}
-	return c1C
+	return g1
 }
 
-func (m *MapperImpl) VariadicAtoB(a0A ...A) ([]B, error) {
-	var a1A []B
-	for _, each := range a0A {
+func (m *MapperImpl) VariadicAtoB(g0 ...A) ([]B, error) {
+	var g1 []B
+	for _, each := range g0 {
 		tmp, err := m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
-		a1A = append(a1A, tmp)
+		g1 = append(g1, tmp)
 	}
-	return a1A, nil
+	return g1, nil
 }
 
-func (m *MapperImpl) VariadicCtoD(c0C ...C) []D {
-	c1C := make([]D, len(c0C))
-	for i, each := range c0C {
-		c1C[i] = m.mapMainCToMainD(each)
+func (m *MapperImpl) VariadicCtoD(g0 ...C) []D {
+	g1 := make([]D, len(g0))
+	for i, each := range g0 {
+		g1[i] = m.mapMainCToMainD(each)
 	}
-	return c1C
+	return g1
 }

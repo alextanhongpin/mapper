@@ -25,8 +25,6 @@ func (v *FuncParamVisitor) Visit(T types.Type) bool {
 	case *types.Struct:
 		v.fields = mapper.ExtractStructFields(u).WithTags()
 		return false
-	default:
-		panic("not handled")
 	}
 	return true
 }

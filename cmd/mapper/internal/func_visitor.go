@@ -80,7 +80,7 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 
 	var hasError bool
 	if nres > 1 {
-		if !IsUnderlyingError(sig.Results().At(1).Type()) {
+		if !mapper.IsUnderlyingError(sig.Results().At(1).Type()) {
 			panic("tuple return must be error")
 		}
 		hasError = true
@@ -112,7 +112,6 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 		panic("error not implemented")
 	}
 
-	// Deferred
 	// checkTypesMatchs
 	if paramVisitor.isCollection != resultVisitor.isCollection {
 		if paramVisitor.isCollection {

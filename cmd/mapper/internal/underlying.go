@@ -26,16 +26,3 @@ func NewUnderlyingType(T types.Type) types.Type {
 	_ = mapper.Walk(v, T)
 	return v.u
 }
-
-func IsUnderlyingError(T types.Type) bool {
-	U := NewUnderlyingType(T)
-	return U.String() == "error"
-}
-
-func IsUnderlyingIdentical(lhs, rhs types.Type) bool {
-	return UnderlyingSignature(lhs) == UnderlyingSignature(rhs)
-}
-
-func UnderlyingSignature(T types.Type) string {
-	return types.TypeString(NewUnderlyingType(T), nil)
-}

@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"go/types"
+
 	"github.com/alextanhongpin/mapper"
 	. "github.com/dave/jennifer/jen"
 )
@@ -29,20 +31,20 @@ func (b *FuncBuilder) GenReturnOnError() *Statement {
 	return GenReturnValue(b.fn)
 }
 
-func (b *FuncBuilder) BuildFuncCall(c *C, fn *mapper.Func, lhs, rhs *mapper.Type) {
+func (b *FuncBuilder) BuildFuncCall(c *C, fn *mapper.Func, lhs, rhs types.Type) {
 	b.buildFunc(c, fn, lhs, rhs, func() *Statement {
 		prefix := Qual(fn.PkgPath, fn.Name)
 		return b.genMethodCall(prefix, fn, lhs, rhs)
 	})
 }
 
-func (b *FuncBuilder) BuildMethodCall(c *C, prefix *Statement, fn *mapper.Func, lhs, rhs *mapper.Type) {
+func (b *FuncBuilder) BuildMethodCall(c *C, prefix *Statement, fn *mapper.Func, lhs, rhs types.Type) {
 	b.buildFunc(c, fn, lhs, rhs, func() *Statement {
 		return b.genMethodCall(prefix, fn, lhs, rhs)
 	})
 }
 
-func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs, rhs *mapper.Type) *Statement {
+func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs, rhs types.Type) *Statement {
 	var (
 		r                    = b.resolver
 		a0Selection          = r.RhsVar
@@ -60,7 +62,7 @@ func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs,
 			s.Add(Op("*"))
 		}
 
-		if lhs.IsSlice && rhs.IsSlice {
+		if mapper.IsSlice(lhs) && mapper.IsSlice(rhs) {
 			s.Add(Id("each"))
 		} else {
 			s.Add(a0Selection())
@@ -68,7 +70,7 @@ func (b *FuncBuilder) genMethodCall(prefix *Statement, method *mapper.Func, lhs,
 	}))
 }
 
-func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fnCall func() *Statement) {
+func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs types.Type, fnCall func() *Statement) {
 	var (
 		r           = b.resolver
 		a0Name      = r.LhsVar
@@ -78,11 +80,11 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 		r.Assign()
 	}()
 
-	inputIsPointer := lhs.IsPointer
-	outputIsPointer := fn.To.Type.IsPointer
-	expectsPointer := rhs.IsPointer
-	inputIsSlice := lhs.IsSlice
-	outputIsSlice := rhs.IsSlice
+	inputIsPointer := mapper.IsPointer(lhs)
+	outputIsPointer := mapper.IsPointer(fn.To.Type)
+	expectsPointer := mapper.IsPointer(rhs)
+	inputIsSlice := mapper.IsSlice(lhs)
+	outputIsSlice := mapper.IsSlice(rhs)
 
 	if !fn.Error {
 		if !inputIsSlice {

@@ -81,7 +81,7 @@ func (v *InterfaceVisitor) parseMethods() {
 			field, isField := param.FieldByName(name)
 			method, _ := param.MethodByName(name)
 
-			var lhsType *mapper.Type
+			var lhsType types.Type
 			if isField {
 				lhsType = field.Type
 			} else {
@@ -107,14 +107,14 @@ func (v *InterfaceVisitor) parseMethods() {
 
 				*/
 				mapperFn, _ := result.MapperByTag(rhs.Tag.Tag)
-				paramType := mapperFn.From.Type.T
-				resultType := mapperFn.To.Type.T
+				paramType := mapperFn.From.Type
+				resultType := mapperFn.To.Type
 
-				if !IsUnderlyingIdentical(lhsType.T, paramType) {
+				if !mapper.IsUnderlyingIdentical(lhsType, paramType) {
 					panic("input type does not match func arg")
 				}
 
-				if !IsUnderlyingIdentical(rhsType.T, resultType) {
+				if !mapper.IsUnderlyingIdentical(rhsType, resultType) {
 					panic("output type does not match func result")
 				}
 
@@ -122,8 +122,11 @@ func (v *InterfaceVisitor) parseMethods() {
 				continue
 			}
 
-			if !IsUnderlyingIdentical(lhsType.T, rhsType.T) {
-				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes(lhsType, rhsType)).Signature()
+			if !mapper.IsUnderlyingIdentical(lhsType, rhsType) {
+				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes(
+					NewUnderlyingType(lhsType),
+					NewUnderlyingType(rhsType),
+				)).Signature()
 				if !v.mappers[innerSignature] {
 					panic("no conversion found for field")
 				}
@@ -136,10 +139,7 @@ func (v *InterfaceVisitor) Methods() map[string]*mapper.Func {
 	return v.methods
 }
 
-func (v *InterfaceVisitor) MethodInfo() map[string]*FuncVisitor {
-	return v.methodInfo
-}
-
-func (v *InterfaceVisitor) MappersByName() map[string]bool {
-	return v.mappers
+func (v *InterfaceVisitor) MethodInfo(name string) (*FuncVisitor, bool) {
+	info, ok := v.methodInfo[name]
+	return info, ok
 }

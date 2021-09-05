@@ -14,6 +14,29 @@ type StructField struct {
 	Exported bool   // e.g. true
 	Tag      *Tag   // e.g. `map:"RenameField,CustomFunction"`
 	Ordinal  int    // The original position of the struct field.
-	*Type
+	Type     types.Type
+	//*Type
 	*types.Var
+}
+
+func NewStructFields(T types.Type) StructFields {
+	v := NewStructVisitor()
+	_ = Walk(v, T)
+	return v.fields
+}
+
+type StructVisitor struct {
+	fields StructFields
+}
+
+func NewStructVisitor() *StructVisitor {
+	return &StructVisitor{}
+}
+
+func (v *StructVisitor) Visit(T types.Type) bool {
+	switch u := T.Underlying().(type) {
+	case *types.Struct:
+		v.fields = ExtractStructFields(u)
+	}
+	return true
 }
