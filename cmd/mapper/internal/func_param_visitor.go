@@ -10,8 +10,6 @@ type FuncParamVisitor struct {
 	fields       mapper.StructFields
 	methods      map[string]*mapper.Func
 	isCollection bool
-	isPointer    bool
-	obj          *types.TypeName
 }
 
 func NewFuncParamVisitor() *FuncParamVisitor {
@@ -20,15 +18,12 @@ func NewFuncParamVisitor() *FuncParamVisitor {
 
 func (v *FuncParamVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
-	case *types.Pointer:
-		v.isPointer = true
-	case *types.Slice, *types.Array:
+	case *types.Array, *types.Slice:
 		v.isCollection = true
 	case *types.Named:
 		v.methods = mapper.ExtractNamedMethods(u)
-		v.obj = u.Obj()
 	case *types.Struct:
-		v.fields = mapper.ExtractStructFields(u)
+		v.fields = mapper.ExtractStructFields(u).WithTags()
 		return false
 	default:
 		panic("not handled")
@@ -36,18 +31,23 @@ func (v *FuncParamVisitor) Visit(T types.Type) bool {
 	return true
 }
 
-func (v FuncParamVisitor) Fields() mapper.StructFields {
-	return v.fields
+func (v FuncParamVisitor) FieldByName(name string) (mapper.StructField, bool) {
+	field, ok := v.fields[name]
+	return field, ok
 }
 
-func (v FuncParamVisitor) Methods() map[string]*mapper.Func {
-	return v.methods
+func (v FuncParamVisitor) MethodByName(name string) (*mapper.Func, bool) {
+	method, ok := v.methods[name]
+	return method, ok
 }
 
-func (v FuncParamVisitor) IsCollection() bool {
-	return v.isCollection
-}
-
-func (v FuncParamVisitor) IsPointer() bool {
-	return v.isPointer
+// HasError returns true if the LHS field is method call
+// and returns error as the result tuple.
+func (v FuncParamVisitor) HasError() bool {
+	for _, met := range v.methods {
+		if met.Error {
+			return true
+		}
+	}
+	return false
 }

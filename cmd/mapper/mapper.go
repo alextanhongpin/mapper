@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"go/types"
 	"log"
 	"sort"
 
@@ -28,6 +27,7 @@ type Generator struct {
 	uses             map[string]mapper.Type
 	mappers          map[string]bool
 	hasErrorByMapper map[string]bool
+	interfaceVisitor *internal.InterfaceVisitor
 }
 
 func NewGenerator(opt mapper.Option) *Generator {
@@ -54,11 +54,14 @@ func (g *Generator) Generate() error {
 
 	iv := internal.NewInterfaceVisitor(typ.T)
 	interfaceMethods := iv.Methods()
+	g.interfaceVisitor = iv
 
 	// Cache first so that we can re-use later.
 	var keys []string
 	for key, method := range interfaceMethods {
-		g.mappers[method.Normalize().Signature()] = false
+		signature := method.Normalize().Signature()
+		g.mappers[signature] = false
+		g.hasErrorByMapper[signature] = iv.MethodInfo()[method.Name].HasError()
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -66,7 +69,6 @@ func (g *Generator) Generate() error {
 	var stmts []*Statement
 	for _, key := range keys {
 		method := interfaceMethods[key]
-		g.validateToAndFromStruct(method)
 		signature := method.Normalize().Signature()
 		if g.mappers[signature] {
 			continue
@@ -175,13 +177,12 @@ func (g *Generator) genConstructor(f *jen.File) {
 // without pointers, slice etc.
 func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	var (
-		f              = Null()
-		typeName       = g.genTypeName()
-		fnName         = fn.NormalizedName()
-		from           = fn.From
-		to             = fn.To
-		parentHasError = fn.Error
-		hasError       = false
+		f          = Null()
+		typeName   = g.genTypeName()
+		fnName     = fn.NormalizedName()
+		from       = fn.From
+		to         = fn.To
+		methodInfo = g.interfaceVisitor.MethodInfo()[fn.Name]
 	)
 
 	// Loop through all the target keys.
@@ -210,11 +211,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 				// func (l Lhs) Name() string {}
 				//
 				structMethods := mapper.ExtractNamedMethods(from.Type.E)
-				method, ok := structMethods[key]
-				if !ok {
-					panic(fmt.Sprintf("mapper: method not found: %s", field.Tag.Name))
-				}
-
+				method := structMethods[key]
 				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, &field, method, to))
 				continue
 			}
@@ -236,8 +233,6 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			structMethods := mapper.ExtractNamedMethods(from.Type.E)
 			if method, ok := structMethods[key]; ok {
 				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
-			} else {
-				panic(fmt.Sprintf("mapper: cannot map field %q for %s", key, to.Type.Signature()))
 			}
 		}
 	}
@@ -260,9 +255,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		if r.IsMethod() {
 			// IS METHOD
 			method := r.Lhs().(*mapper.Func)
-			if method.Error {
-				hasError = method.Error
-			}
+			hasError := method.Error
 			lhsType = method.To.Type
 
 			// No tags, no errors, and equal types means we can assign the field directly.
@@ -323,11 +316,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
-				rhs := r.Rhs()
-				fn := g.loadTagFunction(&rhs)
-				if fn.Error {
-					hasError = fn.Error
-				}
+				fn, _ := methodInfo.Result.MapperByTag(tag.Tag)
 
 				// Build the func.
 				funcBuilder.BuildFuncCall(&c, fn, lhsType, rhsType)
@@ -339,40 +328,8 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// TAG: IS METHOD
 			// The tag loads a custom struct or interface method.
 			if tag.IsMethod() {
-				fieldPkgPath := lhsType.PkgPath
-				if tag.IsImported() {
-					fieldPkgPath = tag.PkgPath
-				}
-
-				// Load the function.
-				pkg := mapper.LoadPackage(fieldPkgPath)
-				obj := mapper.LookupType(pkg, tag.TypeName)
-				if obj == nil {
-					panic(fmt.Sprintf(`mapper: invalid tag %q
-help: Cannot load type %q`, tag.Tag, tag.TypeName))
-				}
-
-				if _, ok := obj.Type().(*types.Named); !ok {
-					panic("mapper: not a named type")
-				}
-
-				typ := mapper.NewType(obj.Type())
-				var method *mapper.Func
-				switch {
-				case typ.IsInterface:
-					interfaceMethods := internal.GenerateInterfaceMethods(typ.T)
-					method = interfaceMethods[tag.Func]
-				case typ.IsStruct:
-					structMethods := mapper.ExtractNamedMethods(typ.E)
-					method = structMethods[tag.Func]
-				default:
-					panic(fmt.Sprintf("mapper: tag %q is invalid", tag.Tag))
-				}
-				g.validateFunctionSignatureMatch(method, lhsType, rhsType)
-				if method.Error {
-					hasError = method.Error
-				}
-
+				method, _ := methodInfo.Result.MapperByTag(tag.Tag)
+				typ := mapper.NewType(method.Obj.Type())
 				// To avoid different packages having same struct name, prefix the
 				// struct name with the package name.
 				g.uses[tag.Var()] = *typ
@@ -410,18 +367,12 @@ help: Cannot load type %q`, tag.Tag, tag.TypeName))
 		dict[bName()] = a0Selection()
 	}
 
-	// No error signature for this function, however there are mappers with
-	// errors.
-	if hasError && !parentHasError {
-		panic(ErrMissingReturnError(fn))
-	}
-
 	// Since our private mapper does not have knowledge of error,
 	// we need to set it manually.
-	g.hasErrorByMapper[fn.Normalize().Signature()] = hasError
+	//g.hasErrorByMapper[fn.Normalize().Signature()] = hasError
 
 	normFn := fn.Normalize()
-	normFn.Error = hasError
+	normFn.Error = methodInfo.HasError()
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)).                         // (c *Converter)
@@ -521,153 +472,6 @@ func pointerOp(m *mapper.Type, op string) string {
 		return ""
 	}
 	return op
-}
-
-func argsWithIndex(name string, index int) string {
-	return fmt.Sprintf("%s%d", name, index)
-}
-
-func (g *Generator) validateToAndFromStruct(fn *mapper.Func) {
-	lhs, rhs := fn.From.Type, fn.To.Type
-	g.validateFieldMapping(lhs, rhs)
-
-	fromFields := lhs.StructFields
-	fromMethods := mapper.ExtractNamedMethods(lhs.E)
-
-	// Check that the result struct has all the fields provided by the input
-	// struct.
-	for name, rhs := range rhs.StructFields.WithTags() {
-		if lhs, exists := fromFields[name]; exists {
-			g.validateStructField(lhs, rhs)
-			continue
-		}
-		if lhs, exists := fromMethods[name]; exists {
-			g.validateMethodSignature(lhs, rhs)
-			continue
-		}
-		panic(fmt.Sprintf("mapper: field not found: %s does not have fields that maps to %s(%s)",
-			lhs.Signature(),
-			rhs.Signature(),
-			name,
-		))
-	}
-}
-
-func (g *Generator) validateFieldMapping(lhs, rhs *mapper.Type) {
-	if lhs.IsSlice != rhs.IsSlice {
-		if lhs.IsSlice {
-			// TODO: Add better message.
-			panic("mapper: cannot convert from slice to struct")
-		} else {
-			panic("mapper: cannot convert from struct to slice")
-		}
-	}
-	if lhs.IsPointer && !rhs.IsPointer {
-		panic("mapper: value to pointer conversion not allowed")
-	}
-}
-
-func (g *Generator) validateStructField(lhs, rhs mapper.StructField) {
-	if !lhs.Type.Equal(rhs.Type) {
-		// If one of the mappers already implement this, skip the error.
-		if _, exists := g.mappers[buildFnSignature(lhs.Type, rhs.Type)]; exists {
-			return
-		}
-
-		// There could also be a tag function.
-		if rhs.Tag != nil {
-			return
-		}
-
-		// There could also be a value to pointer conversion.
-		// Only applies for the same type, e.g. string to *string.
-		// For structs, they may belong to different package.
-		if lhs.EqualElem(rhs.Type) {
-			return
-		}
-
-		panic(ErrConversion(lhs.Type, rhs.Type))
-	}
-}
-
-// validateMethodSignature checks if the lhs.method() returns the right
-// signature required by rhs.
-func (g *Generator) validateMethodSignature(lhs *mapper.Func, rhs mapper.StructField) {
-	if lhs.From != nil {
-		panic(fmt.Sprintf("mapper: struct method should not have arguments %s", lhs.Signature()))
-	}
-
-	// TODO: check if there is a local mapper that fulfils this type conversion.
-	// This can only be from one of the converters.
-	if !lhs.To.Type.Equal(rhs.Type) {
-		if rhs.Tag == nil {
-			panic(ErrConversion(lhs.To.Type, rhs.Type))
-		}
-	}
-}
-
-// validateFunctionSignatureMatch ensures that the conversion from input to
-// output is allowed.
-// Function can receive value/pointer.
-// Function must return a value/pointer with optional error.
-// Function must accept the input signature of the type.
-// Input can be one or many.
-// Function must accept struct only, if the input is many, it will be
-// operated at elem level.
-func (g *Generator) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
-	var (
-		in     = fn.From.Type
-		out    = fn.To.Type
-		isMany = fn.From.Type.IsSlice || fn.From.Variadic
-	)
-	// Slice A might not equal A
-	// []A != A
-	if !in.EqualElem(lhs) {
-		panic(ErrMismatchType(in, lhs))
-	}
-
-	if !out.EqualElem(rhs) {
-		panic(ErrMismatchType(out, rhs))
-	}
-
-	g.validatePointerConversion(in, out)
-
-	if isMany {
-		panic(fmt.Sprintf("mapper: func input must be struct: %s, provided %s", fn.Signature(), lhs.Signature()))
-	}
-}
-
-func (g *Generator) validatePointerConversion(lhs, rhs *mapper.Type) {
-	if lhs.IsPointer && !rhs.IsPointer {
-		panic(fmt.Sprintf("mapper: conversion of value %s to pointer %s not allowed",
-			lhs.Signature(),
-			rhs.Signature(),
-		))
-	}
-}
-
-func (g *Generator) loadTagFunction(field *mapper.StructField) *mapper.Func {
-	tag := field.Tag
-	// Use the field pkg path from where the left function
-	// reside. It may be on different files.
-	fieldPkgPath := field.PkgPath
-	if tag.IsImported() {
-		fieldPkgPath = tag.PkgPath
-	}
-
-	// Load the function.
-	pkg := mapper.LoadPackage(fieldPkgPath)
-	obj := mapper.LookupType(pkg, tag.Func)
-	if obj == nil {
-		panic(ErrFuncNotFound(tag))
-	}
-
-	fnType, ok := obj.(*types.Func)
-	if !ok {
-		panic(fmt.Sprintf("mapper: %q is not a func", tag.Func))
-	}
-
-	return mapper.NewFunc(fnType)
 }
 
 func buildFnSignature(lhs, rhs *mapper.Type) string {

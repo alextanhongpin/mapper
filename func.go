@@ -26,6 +26,7 @@ type Func struct {
 	Name string
 	// pkg name can be different from package path, e.g. github.com/alextanhongpin/mapper/examples
 	// can have package `main` instead of `examples`.
+	Obj     *types.TypeName
 	Pkg     string
 	PkgPath string
 	From    *FuncArg

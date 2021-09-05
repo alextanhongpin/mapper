@@ -18,6 +18,7 @@ func ExtractNamedMethods(T types.Type) map[string]*Func {
 			continue
 		}
 		fn := NewFunc(method)
+		fn.Obj = t.Obj()
 		result[fn.Name] = fn
 	}
 

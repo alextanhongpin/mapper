@@ -6,23 +6,9 @@ import (
 	"github.com/alextanhongpin/mapper"
 )
 
-type FuncParam interface {
-	Fields() mapper.StructFields
-	Methods() map[string]*mapper.Func
-	IsCollection() bool
-	IsPointer() bool
-}
-
-type FuncResult interface {
-	Fields() mapper.StructFields
-	MappersByTag() map[string]*mapper.Func
-	IsCollection() bool
-	IsPointer() bool
-}
-
 type FuncVisitor struct {
-	Param  FuncParam
-	Result FuncResult
+	Param  *FuncParamVisitor
+	Result *FuncResultVisitor
 }
 
 func (f *FuncVisitor) Visit(fn *types.Func) {
@@ -132,4 +118,8 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 
 	f.Result = resultVisitor
 	f.Param = paramVisitor
+}
+
+func (f FuncVisitor) HasError() bool {
+	return f.Result.HasError() || f.Param.HasError()
 }

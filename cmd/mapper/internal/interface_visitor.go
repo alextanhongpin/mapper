@@ -8,10 +8,10 @@ import (
 )
 
 type InterfaceVisitor struct {
-	methods                           map[string]*mapper.Func
-	methodInfo                        map[string]*FuncVisitor
-	generatedByPrivateMethodSignature map[string]bool
-	hasErrorByPrivateMethod           map[string]bool
+	methods          map[string]*mapper.Func
+	methodInfo       map[string]*FuncVisitor
+	mappers          map[string]bool
+	hasErrorByMapper map[string]bool
 }
 
 func (v *InterfaceVisitor) Visit(T types.Type) bool {
@@ -19,24 +19,24 @@ func (v *InterfaceVisitor) Visit(T types.Type) bool {
 	case *types.Interface:
 		v.methods = mapper.ExtractInterfaceMethods(u)
 		v.parseMethods()
+		return false
 	}
 	return true
 }
 
 func NewInterfaceVisitor(T types.Type) *InterfaceVisitor {
 	v := &InterfaceVisitor{
-		generatedByPrivateMethodSignature: make(map[string]bool),
-		hasErrorByPrivateMethod:           make(map[string]bool),
-		methodInfo:                        make(map[string]*FuncVisitor),
+		mappers:          make(map[string]bool),
+		hasErrorByMapper: make(map[string]bool),
+		methodInfo:       make(map[string]*FuncVisitor),
 	}
 	_ = mapper.Walk(v, T.Underlying())
 	return v
 }
 
 func GenerateInterfaceMethods(T types.Type) map[string]*mapper.Func {
-	v := &InterfaceVisitor{}
-	_ = mapper.Walk(v, T.Underlying())
-	return v.methods
+	u := T.Underlying().(*types.Interface)
+	return mapper.ExtractInterfaceMethods(u)
 }
 
 func (v *InterfaceVisitor) parseMethods() {
@@ -50,9 +50,10 @@ func (v *InterfaceVisitor) parseMethods() {
 		result, param := iv.Result, iv.Param
 
 		// checkFieldsHasMappings
-		for name, rhs := range result.Fields() {
-			_, hasField := param.Fields()[name]
-			_, hasMethod := param.Methods()[name]
+		for _, name := range result.Fields() {
+			rhs, _ := result.FieldByName(name)
+			_, hasField := param.FieldByName(name)
+			_, hasMethod := param.MethodByName(name)
 
 			if !(hasField || hasMethod) {
 				panic(fmt.Errorf("no mapping found for %q", name))
@@ -61,13 +62,13 @@ func (v *InterfaceVisitor) parseMethods() {
 			// There's a custom mapper.
 			if rhs.Tag != nil && rhs.Tag.HasFunc() {
 				//mapperFn(lhs) rhs
-				mapperFn := result.MappersByTag()[rhs.Tag.Name]
+				mapperFn, _ := result.MapperByTag(rhs.Tag.Tag)
 				if mapperFn.Error {
-					v.hasErrorByPrivateMethod[signature] = true
+					v.hasErrorByMapper[signature] = true
 				}
 			}
 		}
-		v.generatedByPrivateMethodSignature[signature] = false
+		v.mappers[signature] = true
 	}
 
 	for name := range v.methods {
@@ -75,9 +76,10 @@ func (v *InterfaceVisitor) parseMethods() {
 
 		result, param := res.Result, res.Param
 
-		for name, rhs := range result.Fields() {
-			field, isField := param.Fields()[name]
-			method := param.Methods()[name]
+		for _, name := range result.Fields() {
+			rhs, _ := result.FieldByName(name)
+			field, isField := param.FieldByName(name)
+			method, _ := param.MethodByName(name)
 
 			var lhsType *mapper.Type
 			if isField {
@@ -104,7 +106,7 @@ func (v *InterfaceVisitor) parseMethods() {
 					CustomFunc(LHS.param) == RHS.result
 
 				*/
-				mapperFn := result.MappersByTag()[rhs.Tag.Name]
+				mapperFn, _ := result.MapperByTag(rhs.Tag.Tag)
 				paramType := mapperFn.From.Type.T
 				resultType := mapperFn.To.Type.T
 
@@ -122,7 +124,7 @@ func (v *InterfaceVisitor) parseMethods() {
 
 			if !IsUnderlyingIdentical(lhsType.T, rhsType.T) {
 				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes(lhsType, rhsType)).Signature()
-				if !v.generatedByPrivateMethodSignature[innerSignature] {
+				if !v.mappers[innerSignature] {
 					panic("no conversion found for field")
 				}
 			}
@@ -138,10 +140,6 @@ func (v *InterfaceVisitor) MethodInfo() map[string]*FuncVisitor {
 	return v.methodInfo
 }
 
-func (v *InterfaceVisitor) GeneratedByPrivateMethodSignature() map[string]bool {
-	return v.generatedByPrivateMethodSignature
-}
-
-func (v *InterfaceVisitor) HasErrorByPrivateMethod() map[string]bool {
-	return v.hasErrorByPrivateMethod
+func (v *InterfaceVisitor) MappersByName() map[string]bool {
+	return v.mappers
 }

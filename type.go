@@ -13,7 +13,7 @@ func Walk(visitor Visitor, T types.Type) bool {
 		return next
 	}
 
-	switch u := T.Underlying().(type) {
+	switch u := T.(type) {
 	case *types.Named:
 		return Walk(visitor, u.Underlying())
 	case *types.Pointer:

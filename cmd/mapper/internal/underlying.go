@@ -12,7 +12,7 @@ type UnderlyingVisitor struct {
 
 func (v *UnderlyingVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
-	case *types.Named, *types.Map, *types.Basic:
+	case *types.Named, *types.Map, *types.Basic, *types.Struct:
 		v.u = u
 		return false
 	default:
@@ -32,9 +32,10 @@ func IsUnderlyingError(T types.Type) bool {
 	return U.String() == "error"
 }
 
-func IsUnderlyingIdentical(L, R types.Type) bool {
-	return types.IdenticalIgnoreTags(
-		NewUnderlyingType(L),
-		NewUnderlyingType(R),
-	)
+func IsUnderlyingIdentical(lhs, rhs types.Type) bool {
+	return UnderlyingSignature(lhs) == UnderlyingSignature(rhs)
+}
+
+func UnderlyingSignature(T types.Type) string {
+	return types.TypeString(NewUnderlyingType(T), nil)
 }

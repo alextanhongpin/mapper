@@ -1,8 +1,6 @@
 package internal
 
 import (
-	"fmt"
-
 	"github.com/alextanhongpin/mapper"
 	. "github.com/dave/jennifer/jen"
 )
@@ -79,8 +77,6 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 	defer func() {
 		r.Assign()
 	}()
-
-	b.validateFunctionSignatureMatch(fn, lhs, rhs)
 
 	inputIsPointer := lhs.IsPointer
 	outputIsPointer := fn.To.Type.IsPointer
@@ -445,33 +441,4 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs *mapper.Type, fn
 			}
 		}
 	}
-}
-
-// validateFunctionSignatureMatch ensures that the conversion from input to
-// output is allowed.
-func (b *FuncBuilder) validateFunctionSignatureMatch(fn *mapper.Func, lhs, rhs *mapper.Type) {
-	var (
-		in                  = fn.From.Type
-		out                 = fn.To.Type
-		pointerToNonPointer = lhs.IsPointer && !rhs.IsPointer
-	)
-
-	if !in.EqualElem(lhs) {
-		panic(ErrMismatchType(in, lhs))
-	}
-
-	if !out.EqualElem(rhs) {
-		panic(ErrMismatchType(out, rhs))
-	}
-
-	// For the scenario `*string -> sql.NullString`
-	if pointerToNonPointer {
-	}
-}
-
-func ErrMismatchType(lhs, rhs *mapper.Type) error {
-	return fmt.Errorf(`mapper: signature does not match: %s to %s`,
-		lhs.Signature(),
-		rhs.Signature(),
-	)
 }
