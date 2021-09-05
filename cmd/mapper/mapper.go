@@ -203,12 +203,8 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	)
 
 	// Loop through all the target keys.
-	var keys []string
 	structFields := mapper.NewStructFields(to.Type).WithTags()
-	for key := range structFields {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := generateSortedStructFields(structFields)
 
 	for _, key := range keys {
 		var r internal.Resolver
@@ -475,4 +471,27 @@ func (g *Generator) genShortName() *Statement {
 func buildFnSignature(lhs, rhs types.Type) string {
 	fn := mapper.NewFunc(mapper.NormFuncFromTypes("", lhs, rhs), nil)
 	return fn.Normalize().Signature()
+}
+
+func generateSortedStructFields(fields mapper.StructFields) []string {
+	type fieldPos struct {
+		key string
+		pos int
+	}
+	var tmp []fieldPos
+	for key, field := range fields {
+		tmp = append(tmp, fieldPos{
+			pos: field.Ordinal,
+			key: key,
+		})
+	}
+	sort.Slice(tmp, func(i, j int) bool {
+		return tmp[i].pos < tmp[j].pos
+	})
+
+	result := make([]string, len(tmp))
+	for i, fieldPos := range tmp {
+		result[i] = fieldPos.key
+	}
+	return result
 }
