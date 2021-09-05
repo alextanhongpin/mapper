@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/alextanhongpin/mapper"
@@ -14,11 +13,16 @@ import (
 const GeneratorName = "github.com/alextanhongpin/mapper"
 
 func main() {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 	if err := mapper.New(func(opt mapper.Option) error {
 		gen := NewGenerator(opt)
 		return gen.Generate()
 	}); err != nil {
-		log.Fatalln(err)
+		fmt.Println(err)
 	}
 }
 
@@ -343,9 +347,6 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// Check if there is a private mapper with the signature that accepts LHS
 			// and returns RHS .
 			signature := buildFnSignature(lhsType, rhsType)
-			if _, ok := g.mappers[signature]; !ok {
-				panic(ErrConversion(lhsType, rhsType))
-			}
 
 			var method *mapper.Func
 			interfaceMethods := internal.GenerateInterfaceMethods(g.opt.Type.T)
@@ -432,9 +433,6 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 	funcBuilder := internal.NewFuncBuilder(res, fn)
 
 	mapperHasError := g.hasErrorByMapper[fn.Normalize().Signature()]
-	if mapperHasError && !fn.Error {
-		panic(ErrMissingReturnError(fn))
-	}
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
@@ -467,36 +465,7 @@ func (g *Generator) genShortName() *Statement {
 	return Id(mapper.ShortName(g.genTypeName()))
 }
 
-func pointerOp(m *mapper.Type, op string) string {
-	if !m.IsPointer {
-		return ""
-	}
-	return op
-}
-
 func buildFnSignature(lhs, rhs *mapper.Type) string {
 	fn := mapper.NewFunc(mapper.NormFuncFromTypes(lhs, rhs))
 	return fn.Normalize().Signature()
-}
-
-func ErrConversion(lhs, rhs *mapper.Type) error {
-	return fmt.Errorf(`mapper: cannot convert %s to %s`,
-		lhs.Signature(),
-		rhs.Signature(),
-	)
-}
-
-func ErrMismatchType(lhs, rhs *mapper.Type) error {
-	return fmt.Errorf(`mapper: signature does not match: %s to %s`,
-		lhs.Signature(),
-		rhs.Signature(),
-	)
-}
-
-func ErrMissingReturnError(fn *mapper.Func) error {
-	return fmt.Errorf("mapper: missing return err for %s", fn.Signature())
-}
-
-func ErrFuncNotFound(tag *mapper.Tag) error {
-	return fmt.Errorf("mapper: func %q from %s not found", tag.Func, tag.Tag)
 }

@@ -22,6 +22,7 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
 	case *types.Array, *types.Slice:
 		v.isCollection = true
+	case *types.Named:
 	case *types.Struct:
 		v.fields = mapper.ExtractStructFields(u).WithTags()
 		for _, field := range v.fields {
@@ -75,8 +76,6 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 				panic("not equal type")
 			}
 		}
-	default:
-		panic("not implemented")
 	}
 	return true
 }

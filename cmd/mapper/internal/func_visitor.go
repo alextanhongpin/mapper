@@ -86,11 +86,13 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 		hasError = true
 	}
 
+	param := sig.Params().At(0).Type()
 	paramVisitor := NewFuncParamVisitor()
-	_ = mapper.Walk(paramVisitor, sig.Params().At(0).Type())
+	_ = mapper.Walk(paramVisitor, param)
 
+	result := sig.Results().At(0).Type()
 	resultVisitor := NewFuncResultVisitor()
-	_ = mapper.Walk(resultVisitor, sig.Results().At(0).Type())
+	_ = mapper.Walk(resultVisitor, result)
 
 	/*
 		The custom function loaded has error, but parent does not have.
@@ -113,7 +115,17 @@ func (f *FuncVisitor) Visit(fn *types.Func) {
 	// Deferred
 	// checkTypesMatchs
 	if paramVisitor.isCollection != resultVisitor.isCollection {
-		panic("mismatch type")
+		if paramVisitor.isCollection {
+			panic(PrettyError(`
+				invalid function %q
+				hint: cannot map slice to non-slice
+			`, PrettyFuncSignature(fn)))
+		} else {
+			panic(PrettyError(`
+				invalid function %q
+				hint: cannot map non-slice to slice
+			`, PrettyFuncSignature(fn)))
+		}
 	}
 
 	f.Result = resultVisitor

@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"go/types"
 	"path"
+	"strings"
 	"sync"
 )
 
@@ -34,9 +35,8 @@ type Func struct {
 	Error   bool
 	Fn      *types.Func // Store the original
 
-	once     sync.Once
-	Norm     *Func
-	NormType *types.Func
+	once sync.Once
+	Norm *Func
 }
 
 func NewFunc(fn *types.Func) *Func {
@@ -48,32 +48,38 @@ func NewFunc(fn *types.Func) *Func {
 	var from, to *FuncArg
 	if sig.Params().Len() > 0 {
 		param := sig.Params().At(0)
-		typ := NewType(param.Type())
+		T := NewType(param.Type())
 		name := param.Name()
 		if name == "" {
-			name = ShortName(typ.Type)
+			name = ShortName(T.Type)
 		}
-		from = NewFuncArg(name, typ, sig.Variadic())
+		from = NewFuncArg(name, T, sig.Variadic())
 	}
 
 	var hasError bool
 	if n := sig.Results().Len(); n > 0 {
 		result := sig.Results().At(0)
 
-		typ := NewType(result.Type())
+		T := NewType(result.Type())
 		name := result.Name()
 		if name == "" {
-			name = ShortName(typ.Type)
+			name = ShortName(T.Type)
 		}
-		to = NewFuncArg(name, typ, sig.Variadic())
+		to = NewFuncArg(name, T, sig.Variadic())
 
 		// Allow errors as second return value.
 		if n > 1 {
 			if errType := NewType(sig.Results().At(1).Type()); errType.IsError {
 				hasError = true
 			} else {
-				// FIXME: Update error handling.
-				panic("mapper: second argument must be error")
+				fnstr := strings.ReplaceAll(types.TypeString(sig, (*types.Package).Name), "func", fmt.Sprintf("func %s", fn.Name()))
+				panic(fmt.Errorf(`invalid function %q
+hint: second return type must be error
+help: replace %q with %q`,
+					fnstr,
+					sig.Results().At(1).Type(),
+					"error",
+				))
 			}
 		}
 	}
@@ -120,7 +126,6 @@ func (f *Func) Normalize() *Func {
 	f.once.Do(func() {
 		T := NormFunc(f.NormalizedName(), f.Fn)
 		f.Norm = NewFunc(T)
-		f.NormType = T
 	})
 	return f.Norm
 }
