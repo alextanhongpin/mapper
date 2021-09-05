@@ -5,7 +5,6 @@ import (
 	"go/token"
 	"go/types"
 	"path"
-	"strings"
 	"sync"
 )
 
@@ -96,9 +95,7 @@ func NewFunc(fn *types.Func) *Func {
 }
 
 func (f *Func) normalizedArg(arg *FuncArg) string {
-	_, s := path.Split(fullName(arg.Type.Pkg, arg.Type.Type))
-	s = strings.ReplaceAll(s, ".", "")
-	s = UpperCommonInitialism(s)
+	_, s := path.Split(fmt.Sprintf("%s%s", UpperCommonInitialism(arg.Type.Pkg), arg.Type.Type))
 	return s
 }
 
@@ -135,13 +132,6 @@ func (f *Func) RequiresInputPointer(in *Type) bool {
 // RequiresInputValue returns true if the input needs to be converted into a value.
 func (f *Func) RequiresInputValue(in *Type) bool {
 	return in.IsPointer && !f.From.Type.IsPointer
-}
-
-func fullName(pkgPath, name string) string {
-	if pkgPath == "" {
-		return name
-	}
-	return fmt.Sprintf("%s.%s", pkgPath, name)
 }
 
 // NormFunc generates a new func with the normalize type -

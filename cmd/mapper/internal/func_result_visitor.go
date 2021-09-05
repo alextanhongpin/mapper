@@ -8,25 +8,27 @@ import (
 )
 
 type FuncResultVisitor struct {
-	fields          mapper.StructFields
-	hasError        bool
-	errorsByMappers map[string]bool
-	mappersByTag    map[string]*mapper.Func
-	isCollection    bool
+	fields       mapper.StructFields
+	mappersByTag map[string]*mapper.Func
+	isCollection bool
+	isPointer    bool
+	obj          *types.TypeName
 }
 
 func NewFuncResultVisitor() *FuncResultVisitor {
 	return &FuncResultVisitor{
-		errorsByMappers: make(map[string]bool),
-		mappersByTag:    make(map[string]*mapper.Func),
+		mappersByTag: make(map[string]*mapper.Func),
 	}
 }
 
 func (v *FuncResultVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
+	case *types.Pointer:
+		v.isPointer = true
 	case *types.Slice, *types.Array:
 		v.isCollection = true
 	case *types.Named:
+		v.obj = u.Obj()
 		return true
 	case *types.Struct:
 		v.fields = mapper.ExtractStructFields(u)
@@ -42,22 +44,14 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 			if tag.IsFunc() {
 				fn := loadFunc(field)
 				v.mappersByTag[tag.Name] = fn
-				v.errorsByMappers[tag.Name] = fn.Error
 				// Avoid overwriting if the struct loads multiple
 				// functions and some does not have errors.
-				if fn.Error {
-					v.hasError = fn.Error
-				}
 				m = fn
 
 			}
 			if tag.IsMethod() {
 				met := loadMethod(field)
 				v.mappersByTag[tag.Name] = met
-				v.errorsByMappers[tag.Name] = met.Error
-				if met.Error {
-					v.hasError = met.Error
-				}
 				m = met
 			}
 
@@ -148,4 +142,29 @@ func loadMethod(field mapper.StructField) *mapper.Func {
 
 	structMethods := mapper.ExtractNamedMethods(T)
 	return structMethods[tag.Func]
+}
+
+func (v *FuncResultVisitor) HasError() bool {
+	for _, fn := range v.mappersByTag {
+		if fn.Error {
+			return true
+		}
+	}
+	return false
+}
+
+func (v FuncResultVisitor) Fields() mapper.StructFields {
+	return v.fields
+}
+
+func (v FuncResultVisitor) MappersByTag() map[string]*mapper.Func {
+	return v.mappersByTag
+}
+
+func (v FuncResultVisitor) IsCollection() bool {
+	return v.isCollection
+}
+
+func (v FuncResultVisitor) IsPointer() bool {
+	return v.isPointer
 }

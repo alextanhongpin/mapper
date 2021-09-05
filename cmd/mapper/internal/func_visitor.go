@@ -6,7 +6,26 @@ import (
 	"github.com/alextanhongpin/mapper"
 )
 
-func VisitFunc(fn *types.Func) {
+type FuncParam interface {
+	Fields() mapper.StructFields
+	Methods() map[string]*mapper.Func
+	IsCollection() bool
+	IsPointer() bool
+}
+
+type FuncResult interface {
+	Fields() mapper.StructFields
+	MappersByTag() map[string]*mapper.Func
+	IsCollection() bool
+	IsPointer() bool
+}
+
+type FuncVisitor struct {
+	Param  FuncParam
+	Result FuncResult
+}
+
+func (f *FuncVisitor) Visit(fn *types.Func) {
 	/*
 		func (m Mapper) mapFooToBar(f0 Foo) Bar {
 			return Bar{
@@ -60,7 +79,7 @@ func VisitFunc(fn *types.Func) {
 	// Load all struct field tags
 	// struct field return methods must match the rhs field return type.
 	// struct field input must match all the lhs input
-	
+
 	// checkFuncHasOneParam
 	npar := sig.Params().Len()
 	if npar != 1 {
@@ -100,70 +119,17 @@ func VisitFunc(fn *types.Func) {
 
 	*/
 	// checkFuncMissingError
-	if resultVisitor.hasError && !hasError {
+	if resultVisitor.HasError() && !hasError {
 		// Invalid error signature
 		panic("error not implemented")
 	}
 
-	// checkFieldsHasMappings
-	for name, rhs := range resultVisitor.fields {
-		// It's a field mapping.
-		if lhs, ok := paramVisitor.fields[name]; ok {
-			if tagFn, ok := resultVisitor.mappersByTag[rhs.Tag.Name]; ok {
-				// There tag fn input does not match.
-				if !tagFn.From.Type.EqualElem(lhs.Type) {
-					panic("invalid input type")
-				}
-				// The tag function input matches.
-				continue
-			}
-			// TODO: Check private mapper method.
-			// NOTE: Load all function before doing this checking.
-			if !lhs.Type.EqualElem(rhs.Type) {
-				panic("cannot map field")
-			}
-			continue
-		}
-
-		if lhs, ok := paramVisitor.methods[name]; ok {
-			if !lhs.To.Type.EqualElem(rhs.Type) {
-				panic("cannot map field")
-			}
-			continue
-		}
-		panic("not matching field found")
-	}
 	// Deferred
 	// checkTypesMatchs
-	if paramVisitor.isCollection != resultVisitor.isCollection {}
-}
-type Transform struct {
-	Left, Right interface{}
-}
+	if paramVisitor.isCollection != resultVisitor.isCollection {
+		panic("mismatch type")
+	}
 
-func VisitFuncs(fns map[string]*mapper.Func) {
-	// privateMethods := make(map
-	// infos ...
-
-	// for each fn
-	//    info := VisitFunc(fn)
-	//    store the info for later used
-	//    privateMethods[info.normalizedSignature] = false
-	
-	// full validation can now be done
-	// for each info
-	//     validate each field
-	//         rhs field must match lgs field or method
-	//         if got tag, output of fn must match rhs field, input of fn must match lhs field or method
-	//         if no tag, it must match one of the privatemethods, or type must be equal, except pointer
-	
-	// Time to build private methods
-	// is method? expand the method first
-	// has tag? apply transformation
-	// has private method? apply it
-	// pointer? apply it
-}
-
-func IsUnderlyingIdentical() bool {
-    return false
+	f.Result = resultVisitor
+	f.Param = paramVisitor
 }

@@ -31,3 +31,10 @@ func IsUnderlyingError(T types.Type) bool {
 	U := NewUnderlyingType(T)
 	return U.String() == "error"
 }
+
+func IsUnderlyingIdentical(L, R types.Type) bool {
+	return types.IdenticalIgnoreTags(
+		NewUnderlyingType(L),
+		NewUnderlyingType(R),
+	)
+}
