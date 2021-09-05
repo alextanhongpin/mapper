@@ -17,7 +17,7 @@ type InterfaceVisitor struct {
 func (v *InterfaceVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
 	case *types.Interface:
-		v.methods = mapper.ExtractInterfaceMethods(u)
+		v.methods = mapper.NewInterfaceMethods(u)
 		v.parseMethods()
 		return false
 	}
@@ -32,11 +32,6 @@ func NewInterfaceVisitor(T types.Type) *InterfaceVisitor {
 	}
 	_ = mapper.Walk(v, T.Underlying())
 	return v
-}
-
-func GenerateInterfaceMethods(T types.Type) map[string]*mapper.Func {
-	u := T.Underlying().(*types.Interface)
-	return mapper.ExtractInterfaceMethods(u)
 }
 
 func (v *InterfaceVisitor) parseMethods() {
@@ -123,10 +118,7 @@ func (v *InterfaceVisitor) parseMethods() {
 			}
 
 			if !mapper.IsUnderlyingIdentical(lhsType, rhsType) {
-				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes(
-					NewUnderlyingType(lhsType),
-					NewUnderlyingType(rhsType),
-				)).Signature()
+				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes("", lhsType, rhsType)).Signature()
 				if !v.mappers[innerSignature] {
 					panic("no conversion found for field")
 				}

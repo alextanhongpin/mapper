@@ -9,13 +9,13 @@ func NewProductMapperImpl() *ProductMapperImpl {
 	return &ProductMapperImpl{}
 }
 
-func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(g0 Products) ProductSummary {
-	g0Items := CountItems(g0.Items)
-	return ProductSummary{TotalCount: g0Items}
+func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(p0 Products) ProductSummary {
+	p0Items := CountItems(p0.Items)
+	return ProductSummary{TotalCount: p0Items}
 }
 
-func (p *ProductMapperImpl) ProductToProductSummary(g0 Products) *ProductSummary {
-	g1 := p.mapMainProductsToMainProductSummary(g0)
-	g2 := &g1
-	return g2
+func (p *ProductMapperImpl) ProductToProductSummary(p0 Products) *ProductSummary {
+	p1 := p.mapMainProductsToMainProductSummary(p0)
+	p2 := &p1
+	return p2
 }

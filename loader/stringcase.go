@@ -1,31 +1,30 @@
-package mapper
+package loader
 
 import (
+	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
+func ShortName(name string) string {
+	return LowerFirst(name)[:1]
+}
+
 func UpperFirst(s string) string {
-	if len(s) == 0 {
-		return s
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return ""
 	}
-	return strings.ToUpper(firstChar(s)) + s[1:]
+	return fmt.Sprintf("%c%s", unicode.ToUpper(r), s[size:])
 }
 
 func LowerFirst(s string) string {
-	if len(s) == 0 {
-		return s
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return ""
 	}
-	return ShortName(s) + s[1:]
-}
-
-func firstChar(s string) string {
-	r, _ := utf8.DecodeRuneInString(s)
-	return string(r)
-}
-
-func ShortName(s string) string {
-	return strings.ToLower(firstChar(s))
+	return fmt.Sprintf("%c%s", unicode.ToLower(r), s[size:])
 }
 
 func UpperCommonInitialism(s string) string {

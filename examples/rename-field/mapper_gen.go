@@ -9,15 +9,15 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(g0 A) B {
+func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 	return B{
-		AnotherID: g0.ID,
-		Name:      g0.Name,
-		ToB:       g0.FromA,
+		AnotherID: a0.ID,
+		Name:      a0.Name,
+		ToB:       a0.FromA,
 	}
 }
 
-func (m *MapperImpl) AtoB(g0 A) B {
-	g1 := m.mapMainAToMainB(g0)
-	return g1
+func (m *MapperImpl) AtoB(a0 A) B {
+	a1 := m.mapMainAToMainB(a0)
+	return a1
 }

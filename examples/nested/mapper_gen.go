@@ -11,48 +11,48 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapExamplesBookToMainBook(g0 examples.Book) Book {
-	g0Price := m.mapExamplesPriceToMainPrice(g0.Price)
-	g1Price := &g0Price
+func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) Book {
+	b0Price := m.mapExamplesPriceToMainPrice(b0.Price)
+	b1Price := &b0Price
 	return Book{
-		ID:     g0.ID,
-		Price:  g1Price,
-		Title:  g0.Title,
-		UserID: g0.UserID,
+		ID:     b0.ID,
+		Price:  b1Price,
+		Title:  b0.Title,
+		UserID: b0.UserID,
 	}
 }
 
-func (m *MapperImpl) mapExamplesPriceToMainPrice(g0 examples.Price) Price {
+func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 	return Price{
-		Amount:   g0.Amount,
-		Currency: &g0.Currency,
+		Amount:   p0.Amount,
+		Currency: &p0.Currency,
 	}
 }
 
-func (m *MapperImpl) mapExamplesUserToMainUser(g0 examples.User) User {
-	g0Books := make([]Book, len(g0.Books))
-	for i, each := range g0.Books {
-		g0Books[i] = m.mapExamplesBookToMainBook(each)
+func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) User {
+	u0Books := make([]Book, len(u0.Books))
+	for i, each := range u0.Books {
+		u0Books[i] = m.mapExamplesBookToMainBook(each)
 	}
 	return User{
-		Books: g0Books,
-		ID:    g0.ID,
-		Name:  g0.Name,
+		Books: u0Books,
+		ID:    u0.ID,
+		Name:  u0.Name,
 	}
 }
 
-func (m *MapperImpl) ConvertBook(g0 examples.Book) (Book, error) {
-	g1 := m.mapExamplesBookToMainBook(g0)
-	return g1, nil
+func (m *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
+	b1 := m.mapExamplesBookToMainBook(b0)
+	return b1, nil
 }
 
-func (m *MapperImpl) ConvertPrice(g0 examples.Price) *Price {
-	g1 := m.mapExamplesPriceToMainPrice(g0)
-	g2 := &g1
-	return g2
+func (m *MapperImpl) ConvertPrice(p0 examples.Price) *Price {
+	p1 := m.mapExamplesPriceToMainPrice(p0)
+	p2 := &p1
+	return p2
 }
 
-func (m *MapperImpl) ConvertUser(g0 examples.User) (User, error) {
-	g1 := m.mapExamplesUserToMainUser(g0)
-	return g1, nil
+func (m *MapperImpl) ConvertUser(u0 examples.User) (User, error) {
+	u1 := m.mapExamplesUserToMainUser(u0)
+	return u1, nil
 }

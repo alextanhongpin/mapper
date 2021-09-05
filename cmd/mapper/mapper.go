@@ -7,6 +7,7 @@ import (
 
 	"github.com/alextanhongpin/mapper"
 	"github.com/alextanhongpin/mapper/cmd/mapper/internal"
+	"github.com/alextanhongpin/mapper/loader"
 	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
 )
@@ -19,6 +20,7 @@ func main() {
 			fmt.Println(err)
 		}
 	}()
+
 	if err := mapper.New(func(opt mapper.Option) error {
 		gen := NewGenerator(opt)
 		return gen.Generate()
@@ -64,14 +66,17 @@ func (g *Generator) Generate() error {
 	// Cache first so that we can re-use later.
 	var keys []string
 	for key, method := range interfaceMethods {
-		signature := method.Normalize().Signature()
-		g.mappers[signature] = false
 		info, _ := iv.MethodInfo(method.Name)
-		g.hasErrorByMapper[signature] = info.HasError()
+		g.hasErrorByMapper[method.Normalize().Signature()] = info.HasError()
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
+	/*
+
+		Collect the generated private methods, but not build them yet,
+		mainly because there are some.
+	*/
 	var stmts []*Statement
 	for _, key := range keys {
 		method := interfaceMethods[key]
@@ -193,6 +198,8 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		from          = fn.From
 		to            = fn.To
 		methodInfo, _ = g.interfaceVisitor.MethodInfo(fn.Name)
+		c             internal.C
+		dict          = make(Dict)
 	)
 
 	// Loop through all the target keys.
@@ -203,33 +210,29 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 	}
 	sort.Strings(keys)
 
-	var resolvers []internal.Resolver
 	for _, key := range keys {
+		var r internal.Resolver
 		// The RHS struct field.
 		to := structFields[key]
 
 		// If LHS field matches the RHS field ...
 		if field, ok := methodInfo.Param.FieldByName(key); ok {
-			if to.Tag != nil && !to.Tag.IsField() {
-				// Has a LHS struct field, but calls the method instead.
-				//
-				// Input:
-				// type Lhs struct{
-				//   // Custom `map` tag to indicate what method name to call.
-				//   name string `map:"Name(),CustomFunc"`
-				// }
-				//
-				// func (l Lhs) Name() string {}
-				//
-				method, ok := methodInfo.Param.MethodByName(key)
-				if !ok {
-					panic("method not found")
-				}
-				resolvers = append(resolvers, internal.NewMethodResolver(from.Name, &field, method, to))
-				continue
+			// Has a LHS struct field, but calls the method instead.
+			//
+			// Input:
+			// type Lhs struct{
+			//   // Custom `map` tag to indicate what method name to call.
+			//   name string `map:"Name(),CustomFunc"`
+			// }
+			//
+			// func (l Lhs) Name() string {}
+			//
+			if method, ok := methodInfo.Param.MethodByName(key); ok {
+				r = internal.NewMethodResolver(from.Name, &field, method, to)
+			} else {
+				// Just an ordinary LHS struct field. Noice.
+				r = internal.NewFieldResolver(from.Name, field, to)
 			}
-			// Just an ordinary LHS struct field. Noice.
-			resolvers = append(resolvers, internal.NewFieldResolver(from.Name, field, to))
 		} else {
 			// Has a LHS struct field, but calls the method instead.
 			// The difference is there's no custom `map` tag to tell us what method it
@@ -248,13 +251,9 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			if !ok {
 				panic("method not found")
 			}
-			resolvers = append(resolvers, internal.NewMethodResolver(from.Name, nil, method, to))
+			r = internal.NewMethodResolver(from.Name, nil, method, to)
 		}
-	}
 
-	var c internal.C
-	dict := make(Dict)
-	for _, r := range resolvers {
 		var (
 			lhsType     types.Type
 			tag         = r.Tag()
@@ -282,15 +281,22 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			}
 
 			if hasError {
-				// Output:
-				//
-				// a0Name, err := a0Name.Name()
-				// if err != nil { ...  }
+				/*
+					Output:
+
+					a0Name, err := a0.Name()
+					if err != nil {
+						return B{}, err
+					}
+				*/
 				c.Add(List(a0Name(), Err()).Op(":=").Add(a0Selection()))
 				c.Add(funcBuilder.GenReturnOnError())
 			} else {
-				// Output:
-				// a0Name := a0Name.Name()
+				/*
+					Output:
+
+					a0Name := a0.Name()
+				*/
 				c.Add(a0Name().Op(":=").Add(a0Selection()))
 			}
 			// Don't exit yet, there might be another step of transformation.
@@ -303,9 +309,13 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// No tags and equal types means we can assign the field directly.
 			if !hasTag && mapper.IsUnderlyingIdentical(lhsType, rhsType) {
 				if mapper.IsIdentical(lhsType, rhsType) {
-					// Output:
-					//
-					// Name: a0Name.Name
+					/*
+						Output:
+
+						B{
+							Name: a0.Name(),
+						}
+					*/
 					dict[bName()] = a0Selection()
 				} else {
 					// There may be non-pointer to pointer conversion, that wasn't
@@ -329,7 +339,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// If a method is provided, it works for single or slice, but the output
 			// raw type must match.
 
-			// TAG: FUNC
+			// TAG: IS FUNC
 			// The tag defines a custom function, TransformationFunc that can be used to
 			// map LHS field to RHS.
 			if tag.IsFunc() {
@@ -361,7 +371,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			signature := buildFnSignature(lhsType, rhsType)
 
 			var method *mapper.Func
-			interfaceMethods := internal.GenerateInterfaceMethods(g.opt.Type)
+			interfaceMethods := mapper.NewInterfaceMethods(g.opt.Type)
 			for _, met := range interfaceMethods {
 				if met.Normalize().Signature() == signature {
 					method = met.Normalize()
@@ -414,29 +424,27 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 		typeName = g.genTypeName()
 		lhsType  = fn.From.Type
 		rhsType  = fn.To.Type
+		c        internal.C
 	)
-
-	// TODO: REPLACE WITH FUNC
-	this := g
 
 	lhs := mapper.StructField{
 		Exported: true,
-		Tag:      nil,
-		Type:     internal.NewUnderlyingType(lhsType),
+		Type:     mapper.NewUnderlyingType(lhsType),
 	}
 	rhs := mapper.StructField{
 		Exported: true,
-		Tag:      nil,
-		Type:     internal.NewUnderlyingType(rhsType),
+		Type:     mapper.NewUnderlyingType(rhsType),
 	}
 
-	var c internal.C
 	res := internal.NewFieldResolver(fn.From.Name, lhs, rhs)
 	arg := res.LhsVar()
 	res.Assign()
 	funcBuilder := internal.NewFuncBuilder(res, fn)
 
-	mapperHasError := g.hasErrorByMapper[fn.Normalize().Signature()]
+	normFn := fn.Normalize()
+	normFn.Error = g.hasErrorByMapper[fn.Normalize().Signature()]
+
+	funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
 
 	f.Func().
 		Params(g.genShortName().Op("*").Id(typeName)). // (c *Converter)
@@ -444,11 +452,6 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func) {
 		Params(internal.GenInputType(arg, fn)). // Convert(a *A)
 		Add(funcBuilder.GenReturnType()).       // (*B, error)
 		BlockFunc(func(g *Group) {
-			normFn := fn.Normalize()
-			normFn.Error = mapperHasError
-
-			funcBuilder.BuildMethodCall(&c, this.genShortName().Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
-
 			for _, code := range c {
 				g.Add(code)
 			}
@@ -466,10 +469,10 @@ func (g *Generator) genTypeName() string {
 }
 
 func (g *Generator) genShortName() *Statement {
-	return Id(mapper.ShortName(g.genTypeName()))
+	return Id(loader.ShortName(g.genTypeName()))
 }
 
 func buildFnSignature(lhs, rhs types.Type) string {
-	fn := mapper.NewFunc(mapper.NormFuncFromTypes(lhs, rhs))
+	fn := mapper.NewFunc(mapper.NormFuncFromTypes("", lhs, rhs))
 	return fn.Normalize().Signature()
 }

@@ -3,12 +3,13 @@ package internal
 import (
 	"go/types"
 
+	"github.com/alextanhongpin/mapper"
 	"github.com/dave/jennifer/jen"
 )
 
 // GenTypeName generates the element type.
 func GenTypeName(T types.Type) *jen.Statement {
-	U := NewUnderlyingType(T)
+	U := mapper.NewUnderlyingType(T)
 	switch u := U.(type) {
 	case *types.Named:
 		return jen.Qual(u.Obj().Pkg().Path(), u.Obj().Name())

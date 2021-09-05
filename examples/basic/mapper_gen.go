@@ -11,32 +11,32 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(g0 A) B {
+func (m *MapperImpl) mapMainAToMainB(a0 A) B {
 	return B{
-		Bool:  g0.Bool,
-		ID:    g0.ID,
-		Map:   g0.Map,
-		Slice: g0.Slice,
-		Str:   g0.Str,
+		Bool:  a0.Bool,
+		ID:    a0.ID,
+		Map:   a0.Map,
+		Slice: a0.Slice,
+		Str:   a0.Str,
 	}
 }
 
-func (m *MapperImpl) mapExamplesAToExamplesB(g0 examples.A) examples.B {
+func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	return examples.B{
-		Bool:  g0.Bool,
-		ID:    g0.ID,
-		Map:   g0.Map,
-		Slice: g0.Slice,
-		Str:   g0.Str,
+		Bool:  a0.Bool,
+		ID:    a0.ID,
+		Map:   a0.Map,
+		Slice: a0.Slice,
+		Str:   a0.Str,
 	}
 }
 
-func (m *MapperImpl) AtoB(g0 A) B {
-	g1 := m.mapMainAToMainB(g0)
-	return g1
+func (m *MapperImpl) AtoB(a0 A) B {
+	a1 := m.mapMainAToMainB(a0)
+	return a1
 }
 
-func (m *MapperImpl) ExternalAtoB(g0 examples.A) examples.B {
-	g1 := m.mapExamplesAToExamplesB(g0)
-	return g1
+func (m *MapperImpl) ExternalAtoB(a0 examples.A) examples.B {
+	a1 := m.mapExamplesAToExamplesB(a0)
+	return a1
 }

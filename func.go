@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/alextanhongpin/mapper/loader"
 )
 
 type FuncArg struct {
@@ -56,11 +58,17 @@ func NewFunc(fn *types.Func) *Func {
 	var from, to *FuncArg
 	if sig.Params().Len() > 0 {
 		param := sig.Params().At(0)
+
 		T := param.Type()
+
 		name := param.Name()
 		if name == "" {
-			name = ShortName(NewUnderlyingType(T).String())
+			_, name = path.Split(UnderlyingString(T, nil))
+			n := strings.Index(name, ".")
+			name = name[n+1:]
+			name = loader.ShortName(name)
 		}
+
 		from = NewFuncArg(name, T, sig.Variadic())
 	}
 
@@ -69,10 +77,15 @@ func NewFunc(fn *types.Func) *Func {
 		result := sig.Results().At(0)
 
 		T := result.Type()
+
 		name := result.Name()
 		if name == "" {
-			name = ShortName(NewUnderlyingType(T).String())
+			_, name = path.Split(UnderlyingString(T, nil))
+			n := strings.Index(name, ".")
+			name = name[n+1:]
+			name = loader.ShortName(name)
 		}
+
 		to = NewFuncArg(name, T, sig.Variadic())
 
 		// Allow errors as second return value.
@@ -112,7 +125,7 @@ help: replace %q with %q`,
 
 func (f *Func) normalizedArg(arg *FuncArg) string {
 	_, s := path.Split(types.TypeString(NewUnderlyingType(arg.Type), (*types.Package).Name))
-	s = UpperCommonInitialism(s)
+	s = loader.UpperCommonInitialism(s)
 	s = strings.ReplaceAll(s, ".", "")
 	return s
 }
@@ -157,44 +170,21 @@ func NormFunc(name string, fn *types.Func) *types.Func {
 	fullSignature := fn.Type().Underlying().(*types.Signature)
 
 	param := fullSignature.Params().At(0).Type()
-
 	result := fullSignature.Results().At(0).Type()
 
-	var paramPkg *types.Package
-	namedParam, ok := param.(*types.Named)
-	if ok {
-		paramPkg = namedParam.Obj().Pkg()
-	}
+	return NormFuncFromTypes(name, param, result)
+}
 
-	var resultPkg *types.Package
-	namedParam, ok = result.(*types.Named)
-	if ok {
-		resultPkg = namedParam.Obj().Pkg()
-	}
+func NormFuncFromTypes(name string, param, result types.Type) *types.Func {
+	param = NewUnderlyingType(param)
+	result = NewUnderlyingType(result)
 
-	params := types.NewTuple(types.NewVar(token.NoPos, paramPkg, "", NewUnderlyingType(param)))
-	results := types.NewTuple(types.NewVar(token.NoPos, resultPkg, "", NewUnderlyingType(result)))
+	namedParam := NewNamedVisitor(param)
+	namedResult := NewNamedVisitor(result)
+
+	params := types.NewTuple(types.NewVar(token.NoPos, namedParam.Pkg(), "", param))
+	results := types.NewTuple(types.NewVar(token.NoPos, namedResult.Pkg(), "", result))
 
 	sig := types.NewSignature(nil, params, results, false)
 	return types.NewFunc(token.NoPos, nil, name, sig)
-}
-
-func NormFuncFromTypes(param, result types.Type) *types.Func {
-	var paramPkg *types.Package
-	namedParam, ok := param.(*types.Named)
-	if ok {
-		paramPkg = namedParam.Obj().Pkg()
-	}
-
-	var resultPkg *types.Package
-	namedParam, ok = result.(*types.Named)
-	if ok {
-		resultPkg = namedParam.Obj().Pkg()
-	}
-
-	params := types.NewTuple(types.NewVar(token.NoPos, paramPkg, "", param))
-	results := types.NewTuple(types.NewVar(token.NoPos, resultPkg, "", result))
-
-	sig := types.NewSignature(nil, params, results, false)
-	return types.NewFunc(token.NoPos, nil, "", sig)
 }

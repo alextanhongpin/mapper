@@ -11,70 +11,70 @@ func NewMapperImpl() *MapperImpl {
 	return &MapperImpl{}
 }
 
-func (m *MapperImpl) mapMainAToMainB(g0 A) B {
-	g0NonPtrToPointer := m.mapMainCToMainD(g0.NonPtrToPointer)
-	g1NonPtrToPointer := &g0NonPtrToPointer
-	var g0Ptr *D
-	if g0.Ptr != nil {
-		tmp := m.mapMainCToMainD(*g0.Ptr)
-		g0Ptr = &tmp
+func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
+	a1NonPtrToPointer := &a0NonPtrToPointer
+	var a0Ptr *D
+	if a0.Ptr != nil {
+		tmp := m.mapMainCToMainD(*a0.Ptr)
+		a0Ptr = &tmp
 	}
 	return B{
-		Bool:            g0.Bool,
-		ID:              g0.ID,
-		Map:             g0.Map,
-		NonPtrToPointer: g1NonPtrToPointer,
-		Ptr:             g0Ptr,
-		Slice:           g0.Slice,
-		Str:             g0.Str,
+		Bool:            a0.Bool,
+		ID:              a0.ID,
+		Map:             a0.Map,
+		NonPtrToPointer: a1NonPtrToPointer,
+		Ptr:             a0Ptr,
+		Slice:           a0.Slice,
+		Str:             a0.Str,
 	}
 }
 
-func (m *MapperImpl) mapMainCToMainD(g0 C) D {
+func (m *MapperImpl) mapMainCToMainD(c0 C) D {
 	return D{
-		Age:  &g0.Age,
-		Name: g0.Name,
+		Age:  &c0.Age,
+		Name: c0.Name,
 	}
 }
 
-func (m *MapperImpl) mapExamplesAToExamplesB(g0 examples.A) examples.B {
+func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 	return examples.B{
-		Bool:  g0.Bool,
-		ID:    g0.ID,
-		Map:   g0.Map,
-		Slice: g0.Slice,
-		Str:   g0.Str,
+		Bool:  a0.Bool,
+		ID:    a0.ID,
+		Map:   a0.Map,
+		Slice: a0.Slice,
+		Str:   a0.Str,
 	}
 }
 
-func (m *MapperImpl) AtoB(g0 A) *B {
-	g1 := m.mapMainAToMainB(g0)
-	g2 := &g1
-	return g2
+func (m *MapperImpl) AtoB(a0 A) *B {
+	a1 := m.mapMainAToMainB(a0)
+	a2 := &a1
+	return a2
 }
 
-func (m *MapperImpl) CPointerToDPointer(g0 *C) *D {
-	var g1 *D
-	if g0 != nil {
-		tmp := m.mapMainCToMainD(*g0)
-		g1 = &tmp
+func (m *MapperImpl) CPointerToDPointer(c0 *C) *D {
+	var c1 *D
+	if c0 != nil {
+		tmp := m.mapMainCToMainD(*c0)
+		c1 = &tmp
 	}
-	return g1
+	return c1
 }
 
-func (m *MapperImpl) CtoD(g0 C) D {
-	g1 := m.mapMainCToMainD(g0)
-	return g1
+func (m *MapperImpl) CtoD(c0 C) D {
+	c1 := m.mapMainCToMainD(c0)
+	return c1
 }
 
-func (m *MapperImpl) CtoDPointer(g0 C) *D {
-	g1 := m.mapMainCToMainD(g0)
-	g2 := &g1
-	return g2
+func (m *MapperImpl) CtoDPointer(c0 C) *D {
+	c1 := m.mapMainCToMainD(c0)
+	c2 := &c1
+	return c2
 }
 
-func (m *MapperImpl) ExternalAtoB(g0 examples.A) *examples.B {
-	g1 := m.mapExamplesAToExamplesB(g0)
-	g2 := &g1
-	return g2
+func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
+	a1 := m.mapExamplesAToExamplesB(a0)
+	a2 := &a1
+	return a2
 }

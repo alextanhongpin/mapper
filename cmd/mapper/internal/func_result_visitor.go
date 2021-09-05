@@ -24,7 +24,7 @@ func (v *FuncResultVisitor) Visit(T types.Type) bool {
 		v.isCollection = true
 	case *types.Named:
 	case *types.Struct:
-		v.fields = mapper.ExtractStructFields(u).WithTags()
+		v.fields = mapper.NewStructFields(u).WithTags()
 		for _, field := range v.fields {
 			tag := field.Tag
 			if tag == nil {

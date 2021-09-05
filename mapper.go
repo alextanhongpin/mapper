@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"go/types"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/alextanhongpin/mapper/loader"
 )
 
 type Option struct {
@@ -24,33 +25,23 @@ type Option struct {
 type Generator func(opt Option) error
 
 func New(fn Generator) error {
-	typePtr := flag.String("type", "", "the target type name")
+	typep := flag.String("type", "", "the target type name")
 	suffixPtr := flag.String("suffix", "Impl", "the suffix to add to the type")
-	inPtr := flag.String("in", os.Getenv("GOFILE"), "the input file, defaults to the file with the go:generate comment")
-	outPtr := flag.String("out", "", "the output directory")
-	dryRunPtr := flag.Bool("dry-run", false, "whether to print to stdout or write to file")
+	inp := flag.String("in", os.Getenv("GOFILE"), "the input file, defaults to the file with the go:generate comment")
+	outp := flag.String("out", "", "the output directory")
+	dryRunp := flag.Bool("dry-run", false, "whether to print to stdout or write to file")
+	pkgp := flag.String("pkg", "github.com", "the package prefix to identify the package path, override this if your packages does not reside from github.com")
 	flag.Parse()
 
-	in := fullPath(*inPtr)
+	in := loader.FullPath(*inp)
 
 	// Allows -type=Foo,Bar
-	typeNames := strings.Split(*typePtr, ",")
-	rootPkgPath := packagePath(in)
+	typeNames := strings.Split(*typep, ",")
+	pkg := loader.LoadPackage(loader.PackagePath(*pkgp, in)) // github.com/your-github-username/your-pkg.
 
 	for _, typeName := range typeNames {
-		var out string
-		if o := *outPtr; o == "" {
-			// path/to/main.go becomes path/to/foo_gen.go
-			out = filepath.Join(filepath.Dir(in), fileNameFromType(typeName))
-		} else {
-			if !hasExtension(o) {
-				panic("mapper: out must be a valid go file")
-			}
-			out = fullPath(o)
-		}
-
-		pkg := LoadPackage(rootPkgPath)
-		obj := LookupType(pkg, typeName)
+		out := loader.FileNameFromTypeName(*inp, *outp, typeName)
+		obj := pkg.Types.Scope().Lookup(typeName)
 		if obj == nil {
 			panic(fmt.Sprintf("mapper: interface %s not found", typeName))
 		}
@@ -69,7 +60,7 @@ func New(fn Generator) error {
 			TypeName: typeName,
 			Suffix:   *suffixPtr,
 			Type:     inType,
-			DryRun:   *dryRunPtr,
+			DryRun:   *dryRunp,
 		}); err != nil {
 			return err
 		}

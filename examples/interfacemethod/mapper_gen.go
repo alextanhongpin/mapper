@@ -17,22 +17,22 @@ func NewMapperImpl(examplesURLer examples.URLer, uRLer URLer) *MapperImpl {
 	}
 }
 
-func (m *MapperImpl) mapMainAToMainB(g0 A) (B, error) {
-	g0ExternalURL := m.examplesURLer.Build(g0.ExternalURL)
-	g0URL, err := m.uRLer.Build(g0.URL)
+func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
+	a0ExternalURL := m.examplesURLer.Build(a0.ExternalURL)
+	a0URL, err := m.uRLer.Build(a0.URL)
 	if err != nil {
 		return B{}, err
 	}
 	return B{
-		ExternalURL: g0ExternalURL,
-		URL:         g0URL,
+		ExternalURL: a0ExternalURL,
+		URL:         a0URL,
 	}, nil
 }
 
-func (m *MapperImpl) AtoB(g0 A) (B, error) {
-	g1, err := m.mapMainAToMainB(g0)
+func (m *MapperImpl) AtoB(a0 A) (B, error) {
+	a1, err := m.mapMainAToMainB(a0)
 	if err != nil {
 		return B{}, err
 	}
-	return g1, nil
+	return a1, nil
 }

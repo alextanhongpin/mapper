@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/alextanhongpin/mapper/loader"
 )
 
 var tagRe *regexp.Regexp
@@ -57,7 +59,7 @@ func NewTag(tag string) (*Tag, bool) {
 		fieldOrMethod = 'm'
 	}
 	pkgPath, expr := path.Split(matches[0][3])
-	pkgPath = stripSlash(pkgPath) // Removes trailing slash
+	pkgPath = strings.TrimRight(pkgPath, "/") // Removes trailing slash
 
 	var typeName, fn string
 	parts := strings.Split(expr, ".")
@@ -131,7 +133,7 @@ func (t Tag) IsImported() bool {
 func (t Tag) Var() string {
 	name := t.Pkg + t.TypeName
 	if t.Pkg == "" {
-		name = LowerFirst(name)
+		name = loader.LowerFirst(name)
 	}
 	return name
 }

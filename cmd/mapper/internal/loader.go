@@ -5,6 +5,7 @@ import (
 	"go/types"
 
 	"github.com/alextanhongpin/mapper"
+	"github.com/alextanhongpin/mapper/loader"
 )
 
 func loadFunc(field mapper.StructField) *mapper.Func {
@@ -17,8 +18,8 @@ func loadFunc(field mapper.StructField) *mapper.Func {
 	}
 
 	// Load the function.
-	pkg := mapper.LoadPackage(fieldPkgPath)
-	obj := mapper.LookupType(pkg, tag.Func)
+	pkg := loader.LoadPackage(fieldPkgPath)
+	obj := pkg.Types.Scope().Lookup(tag.Func)
 	if obj == nil {
 		panic("func not found")
 	}
@@ -39,8 +40,8 @@ func loadMethod(field mapper.StructField) *mapper.Func {
 	}
 
 	// Load the interface/struct.
-	pkg := mapper.LoadPackage(fieldPkgPath)
-	obj := mapper.LookupType(pkg, tag.TypeName)
+	pkg := loader.LoadPackage(fieldPkgPath)
+	obj := pkg.Types.Scope().Lookup(tag.TypeName)
 	if obj == nil {
 		panic(fmt.Errorf("tag %q is invalid\ndetail: %q not found\nhelp: check if the type %q exists", tag.Tag, tag.TypeName, tag.TypeName))
 	}
@@ -52,13 +53,13 @@ func loadMethod(field mapper.StructField) *mapper.Func {
 
 	T := obj.Type()
 	if types.IsInterface(T) {
-		interfaceMethods := GenerateInterfaceMethods(T)
+		interfaceMethods := mapper.NewInterfaceMethods(T)
 		fn := interfaceMethods[tag.Func]
 		fn.Obj = named.Obj()
 		return fn
 	}
 
-	structMethods := mapper.ExtractNamedMethods(T)
+	structMethods := mapper.NewNamedVisitor(T).Methods()
 	method := structMethods[tag.Func]
 	method.Obj = named.Obj()
 	return method

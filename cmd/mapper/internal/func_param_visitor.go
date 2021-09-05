@@ -21,9 +21,9 @@ func (v *FuncParamVisitor) Visit(T types.Type) bool {
 	case *types.Array, *types.Slice:
 		v.isCollection = true
 	case *types.Named:
-		v.methods = mapper.ExtractNamedMethods(u)
+		v.methods = mapper.NewNamedVisitor(u).Methods()
 	case *types.Struct:
-		v.fields = mapper.ExtractStructFields(u).WithTags()
+		v.fields = mapper.NewStructFields(u).WithTags()
 		return false
 	}
 	return true
