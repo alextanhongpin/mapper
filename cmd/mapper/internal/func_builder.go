@@ -146,7 +146,7 @@ func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs types.Type, fnCa
 			}
 		} else {
 			if !outputIsSlice {
-				// INPUT IS SLICE > OUTPUT IS NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER
+				// HAS NO ERROR > INPUT IS SLICE > OUTPUT IS NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER
 				//
 				/*
 					Output:

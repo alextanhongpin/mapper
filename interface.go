@@ -6,12 +6,15 @@ import (
 
 type InterfaceVisitor struct {
 	methods map[string]*Func
+	obj     *types.TypeName
 }
 
 func (v *InterfaceVisitor) Visit(T types.Type) bool {
 	switch u := T.(type) {
+	case *types.Named:
+		v.obj = u.Obj()
 	case *types.Interface:
-		v.methods = newInterfaceMethods(u)
+		v.methods = newInterfaceMethods(u, v.obj)
 		return false
 	}
 	return true
@@ -23,10 +26,10 @@ func NewInterfaceMethods(T types.Type) map[string]*Func {
 	return v.methods
 }
 
-func newInterfaceMethods(in *types.Interface) map[string]*Func {
+func newInterfaceMethods(in *types.Interface, obj *types.TypeName) map[string]*Func {
 	result := make(map[string]*Func)
 	for i := 0; i < in.NumMethods(); i++ {
-		fn := NewFunc(in.Method(i))
+		fn := NewFunc(in.Method(i), obj)
 		result[fn.Name] = fn
 	}
 	return result

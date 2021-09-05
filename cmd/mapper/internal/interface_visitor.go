@@ -118,7 +118,7 @@ func (v *InterfaceVisitor) parseMethods() {
 			}
 
 			if !mapper.IsUnderlyingIdentical(lhsType, rhsType) {
-				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes("", lhsType, rhsType)).Signature()
+				innerSignature := mapper.NewFunc(mapper.NormFuncFromTypes("", lhsType, rhsType), nil).Signature()
 				if !v.mappers[innerSignature] {
 					panic("no conversion found for field")
 				}

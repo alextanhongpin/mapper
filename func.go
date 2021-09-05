@@ -49,7 +49,7 @@ type Func struct {
 	Norm *Func
 }
 
-func NewFunc(fn *types.Func) *Func {
+func NewFunc(fn *types.Func, obj *types.TypeName) *Func {
 	sig, ok := fn.Type().(*types.Signature)
 	if !ok {
 		panic(fmt.Sprintf("mapper: type is not func: %v", fn))
@@ -114,6 +114,7 @@ help: replace %q with %q`,
 
 	return &Func{
 		Name:    fn.Name(),
+		Obj:     obj,
 		Pkg:     pkgName,
 		PkgPath: pkgPath,
 		From:    from,
@@ -149,7 +150,7 @@ func (f *Func) Signature() string {
 func (f *Func) Normalize() *Func {
 	f.once.Do(func() {
 		T := NormFunc(f.NormalizedName(), f.Fn)
-		f.Norm = NewFunc(T)
+		f.Norm = NewFunc(T, f.Obj)
 	})
 	return f.Norm
 }

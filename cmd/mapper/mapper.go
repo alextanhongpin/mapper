@@ -473,6 +473,6 @@ func (g *Generator) genShortName() *Statement {
 }
 
 func buildFnSignature(lhs, rhs types.Type) string {
-	fn := mapper.NewFunc(mapper.NormFuncFromTypes("", lhs, rhs))
+	fn := mapper.NewFunc(mapper.NormFuncFromTypes("", lhs, rhs), nil)
 	return fn.Normalize().Signature()
 }

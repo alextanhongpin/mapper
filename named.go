@@ -62,8 +62,7 @@ func newNamedMethods(T types.Type) map[string]*Func {
 		if !method.Exported() {
 			continue
 		}
-		fn := NewFunc(method)
-		fn.Obj = t.Obj()
+		fn := NewFunc(method, t.Obj())
 		result[fn.Name] = fn
 	}
 

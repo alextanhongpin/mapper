@@ -29,7 +29,7 @@ func loadFunc(field mapper.StructField) *mapper.Func {
 		panic(fmt.Sprintf("mapper: %q is not a func", tag.Func))
 	}
 
-	return mapper.NewFunc(T)
+	return mapper.NewFunc(T, nil)
 }
 
 func loadMethod(field mapper.StructField) *mapper.Func {
