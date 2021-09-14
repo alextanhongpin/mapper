@@ -12,16 +12,21 @@ import (
 )
 
 type Option struct {
-	In       string // The input path, with the file name, e.g. yourpath/yourfile.go
-	Out      string // The output path, with the mapper name, e.g. yourpath/yourfile_gen.go
-	Pkg      *types.Package
-	PkgName  string // The pkgName
-	PkgPath  string // The pkgPath
-	Suffix   string
-	TypeName string // The typeName
-	Type     types.Type
-	DryRun   bool
-	Prune    bool
+	In      string // The input path, with the file name, e.g. yourpath/yourfile.go
+	Out     string // The output path, with the mapper name, e.g. yourpath/yourfile_gen.go
+	Pkg     *types.Package
+	PkgName string // The pkgName
+	PkgPath string // The pkgPath
+	Suffix  string
+	DryRun  bool
+	Prune   bool
+	Items   []OptionItem
+}
+
+type OptionItem struct {
+	Name string
+	Type types.Type
+	Path string
 }
 
 type TypeNames struct {
@@ -72,6 +77,17 @@ func New(fn Generator) error {
 	// Allows -type=Foo,Bar
 	pkg := loader.LoadPackage(loader.PackagePath(*pkgp, in)) // github.com/your-github-username/your-pkg.
 
+	out := loader.FileNameFromTypeName(*inp, *outp, loader.FileName(*inp))
+	opt := Option{
+		//Pkg:     obj.Pkg(),
+		PkgName: pkg.Name,
+		PkgPath: pkg.PkgPath,
+		Out:     out,
+		In:      in,
+		Suffix:  *suffixPtr,
+		DryRun:  *dryRunp,
+	}
+
 	pruneFileIfExists := func(path string) {
 		if *prunep {
 			// File may not exists yet, ignore.
@@ -82,8 +98,9 @@ func New(fn Generator) error {
 	}
 
 	for _, typeName := range typeNames.Items() {
-		out := loader.FileNameFromTypeName(*inp, *outp, typeName)
-		pruneFileIfExists(out)
+		path := loader.FileNameFromTypeName(*inp, *outp, typeName)
+		pruneFileIfExists(path)
+
 		obj := pkg.Types.Scope().Lookup(typeName)
 		if obj == nil {
 			panic(fmt.Sprintf("mapper: interface %s not found", typeName))
@@ -94,20 +111,12 @@ func New(fn Generator) error {
 			panic(fmt.Sprintf("mapper: %v is not an interface", obj))
 		}
 
-		if err := fn(Option{
-			Pkg:     obj.Pkg(),
-			PkgName: pkg.Name,
-			PkgPath: pkg.PkgPath,
-			Out:     out,
-			In:      in,
-			Suffix:  *suffixPtr,
-			DryRun:  *dryRunp,
-
-			TypeName: typeName,
-			Type:     inType,
-		}); err != nil {
-			return err
-		}
+		opt.Items = append(opt.Items, OptionItem{
+			Path: path,
+			Type: inType,
+			Name: typeName,
+		})
 	}
-	return nil
+
+	return fn(opt)
 }

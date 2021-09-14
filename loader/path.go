@@ -64,3 +64,12 @@ func FileNameFromTypeName(input, output, typename string) string {
 	// path/to/main.go becomes path/to/foo_gen.go
 	return safeAddFileName(dir, fileName)
 }
+
+func FileName(p string) string {
+	file := filepath.Base(p)
+	ext := filepath.Ext(file)
+	if ext == "" {
+		return file
+	}
+	return file[:len(file)-len(ext)]
+}
