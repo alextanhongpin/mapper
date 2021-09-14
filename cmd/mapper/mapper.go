@@ -31,7 +31,7 @@ func main() {
 
 type Generator struct {
 	opt              mapper.Option
-	uses             map[string]types.Type
+	dependencies     map[string]types.Type
 	mappers          map[string]bool
 	hasErrorByMapper map[string]bool
 	interfaceVisitor *internal.InterfaceVisitor
@@ -40,7 +40,7 @@ type Generator struct {
 func NewGenerator(opt mapper.Option) *Generator {
 	return &Generator{
 		opt:              opt,
-		uses:             make(map[string]types.Type),
+		dependencies:     make(map[string]types.Type),
 		mappers:          make(map[string]bool),
 		hasErrorByMapper: make(map[string]bool),
 	}
@@ -66,7 +66,10 @@ func (g *Generator) Generate() error {
 	// Cache first so that we can re-use later.
 	var keys []string
 	for key, method := range interfaceMethods {
-		info, _ := iv.MethodInfo(method.Name)
+		info, ok := iv.MethodInfo(method.Name)
+		if !ok {
+			panic(fmt.Errorf("method not found: %s", method.Name))
+		}
 		g.hasErrorByMapper[method.Normalize().Signature()] = info.HasError()
 		keys = append(keys, key)
 	}
@@ -101,7 +104,7 @@ func (g *Generator) Generate() error {
 	for _, key := range keys {
 		method := interfaceMethods[key]
 		if !g.mappers[method.Normalize().Signature()] {
-			panic("mapper: method not found")
+			panic("method not found")
 		}
 		g.genPublicMethod(f, method)
 	}
@@ -113,9 +116,9 @@ func (g *Generator) Generate() error {
 	return nil
 }
 
-func (g *Generator) usesKeys() []string {
+func (g *Generator) dependenciesKeys() []string {
 	var keys []string
-	for key := range g.uses {
+	for key := range g.dependencies {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -139,9 +142,9 @@ func (g *Generator) genStruct(f *jen.File) {
 	// }
 
 	f.Type().Id(g.genTypeName()).StructFunc(func(group *Group) {
-		typeNames := g.usesKeys()
+		typeNames := g.dependenciesKeys()
 		for _, typeName := range typeNames {
-			use := g.uses[typeName]
+			use := g.dependencies[typeName]
 			o := mapper.NewTypeName(use)
 			p := o.Pkg()
 			group.Add(Id(typeName), Do(func(s *Statement) {
@@ -164,11 +167,11 @@ func (g *Generator) genConstructor(f *jen.File) {
 	// }
 
 	typeName := g.genTypeName()
-	typeNames := g.usesKeys()
+	typeNames := g.dependenciesKeys()
 
 	f.Func().Id(fmt.Sprintf("New%s", typeName)).ParamsFunc(func(group *Group) {
 		for _, structName := range typeNames {
-			use := g.uses[structName]
+			use := g.dependencies[structName]
 			o := mapper.NewTypeName(use)
 			p := o.Pkg()
 			group.Add(Id(structName), Do(func(s *Statement) {
@@ -264,7 +267,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 			// No tags, no errors, and equal types means we can assign the field directly.
 			if !hasTag && !hasError && mapper.IsIdentical(lhsType, rhsType) {
 				// Output:
-				// Name: a0Name.Name()
+				// Name: a0.Name()
 				dict[bName()] = a0Selection()
 				continue
 			}
@@ -288,6 +291,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 				*/
 				c.Add(a0Name().Op(":=").Add(a0Selection()))
 			}
+
 			// Don't exit yet, there might be another step of transformation.
 			r.Assign()
 		} else {
@@ -347,9 +351,10 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 				method, _ := methodInfo.Result.MapperByTag(tag.Tag)
 				// To avoid different packages having same struct name, prefix the
 				// struct name with the package name.
-				g.uses[tag.Var()] = method.Obj.Type()
+				g.dependencies[tag.Var()] = method.Obj.Type()
 
 				funcBuilder.BuildMethodCall(&c, g.genShortName().Dot(tag.Var()).Dot(method.Name), method, lhsType, rhsType)
+
 				lhsType = method.To.Type
 			}
 		}
@@ -389,16 +394,12 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 				g.Add(code)
 			}
 
-			g.Add(Return(
-				List(
-					internal.GenTypeName(to.Type).Values(dict),
-					Do(func(s *Statement) {
-						if normFn.Error {
-							s.Add(Nil())
-						}
-					}),
-				),
-			))
+			returnType := internal.GenTypeName(to.Type).Values(dict)
+			if normFn.Error {
+				g.Add(Return(List(returnType, Nil())))
+			} else {
+				g.Add(Return(returnType))
+			}
 		}).Line()
 	return f
 }
