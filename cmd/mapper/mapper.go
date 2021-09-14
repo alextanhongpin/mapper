@@ -15,11 +15,11 @@ import (
 const GeneratorName = "github.com/alextanhongpin/mapper"
 
 func main() {
-	//defer func() {
-	//if err := recover(); err != nil {
-	//fmt.Println(err)
-	//}
-	//}()
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 
 	if err := mapper.New(func(opt mapper.Option) error {
 		gen := NewGenerator(opt)
@@ -221,41 +221,26 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 
 		// If LHS field matches the RHS field ...
 		if field, ok := methodInfo.Param.FieldByName(key); ok {
-			// Has a LHS struct field, but calls the method instead.
-			//
-			// Input:
-			// type Lhs struct{
-			//   // Custom `map` tag to indicate what method name to call.
-			//   name string `map:"Name(),CustomFunc"`
-			// }
-			//
-			// func (l Lhs) Name() string {}
-			//
-			if method, ok := methodInfo.Param.MethodByName(key); ok {
-				r = internal.NewMethodResolver(from.Name, &field, method, to)
-			} else {
-				// Just an ordinary LHS struct field. Noice.
-				r = internal.NewFieldResolver(from.Name, field, to)
-			}
-		} else {
-			// Has a LHS struct field, but calls the method instead.
-			// The difference is there's no custom `map` tag to tell us what method it
-			// is. Rather, we infer from the name of the RHS field.
-			//
-			// Input:
-			// type Lhs struct{
-			//   name string
-			// }
-			//
-			// func (l Lhs) Name() string {}
-			//
-			// LHS method can also return error as the second argument.
-
-			method, ok := methodInfo.Param.MethodByName(key)
-			if !ok {
-				panic("method not found")
-			}
+			// Just an ordinary LHS struct field. Noice.
+			r = internal.NewFieldResolver(from.Name, field, to)
+		}
+		// Has a LHS struct field, but calls the method instead.
+		// The difference is there's no custom `map` tag to tell us what method it
+		// is. Rather, we infer from the name of the RHS field.
+		//
+		// Input:
+		// type Lhs struct{
+		//   name string
+		// }
+		//
+		// func (l Lhs) Name() string {}
+		//
+		// LHS method can also return error as the second argument.
+		if method, ok := methodInfo.Param.MethodByName(key); ok {
 			r = internal.NewMethodResolver(from.Name, nil, method, to)
+		}
+		if r == nil {
+			panic("not a field or method")
 		}
 
 		var (
