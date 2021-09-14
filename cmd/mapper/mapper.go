@@ -240,7 +240,7 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func) *jen.Statement {
 		//
 		// LHS method can also return error as the second argument.
 		if method, ok := methodInfo.Param.MethodByName(key); ok {
-			r = internal.NewMethodResolver(from.Name, nil, method, to)
+			r = internal.NewMethodResolver(from.Name, method, to)
 		}
 		if r == nil {
 			panic("not a field or method")

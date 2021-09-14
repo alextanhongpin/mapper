@@ -8,35 +8,21 @@ import (
 var mr Resolver = new(MethodResolver)
 
 type MethodResolver struct {
-	name string
-	// If the custom `map` tag is not defined, this will be nil.
-	field *mapper.StructField
+	name  string
 	lhs   *mapper.Func
 	rhs   mapper.StructField
 	count int
 }
 
-func NewMethodResolver(name string, field *mapper.StructField, lhs *mapper.Func, rhs mapper.StructField) *MethodResolver {
+func NewMethodResolver(name string, lhs *mapper.Func, rhs mapper.StructField) *MethodResolver {
 	return &MethodResolver{
-		name:  name,
-		field: field,
-		lhs:   lhs,
-		rhs:   rhs,
+		name: name,
+		lhs:  lhs,
+		rhs:  rhs,
 	}
 }
 
 func (f MethodResolver) Lhs() interface{} {
-	// For the first invocation, this will be a method call. Subsequent calls will be field.
-	// a0Name := a0.Name()
-	// a1Name := a0Name
-	if f.count == 0 {
-		return f.lhs
-	}
-
-	if f.field != nil {
-		return *f.field
-	}
-
 	return f.lhs
 }
 
