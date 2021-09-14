@@ -20,21 +20,21 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	a0AliasID := IntToString(a0.ID)
 	a0ExternalID := examples.IntToString(a0.ExternalID)
 	a0ID := IntToString(a0.ID)
-	var a0IDs []uuid.UUID
-	for _, each := range a0.IDs {
-		tmp, err := uuid.Parse(each)
+	a0IDs := make([]uuid.UUID, len(a0.IDs))
+	for i, each := range a0.IDs {
+		var err error
+		a0IDs[i], err = uuid.Parse(each)
 		if err != nil {
 			return B{}, err
 		}
-		a0IDs = append(a0IDs, tmp)
 	}
-	var a0Nums []int
-	for _, each := range a0.Nums {
-		tmp, err := strconv.Atoi(each)
+	a0Nums := make([]int, len(a0.Nums))
+	for i, each := range a0.Nums {
+		var err error
+		a0Nums[i], err = strconv.Atoi(each)
 		if err != nil {
 			return B{}, err
 		}
-		a0Nums = append(a0Nums, tmp)
 	}
 	var a0PtrString sql.NullString
 	if a0.PtrString != nil {
@@ -106,13 +106,13 @@ func (m *MapperImpl) CtoD(c0 C) D {
 }
 
 func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
-	var a1 []B
-	for _, each := range a0 {
-		tmp, err := m.mapMainAToMainB(each)
+	a1 := make([]B, len(a0))
+	for i, each := range a0 {
+		var err error
+		a1[i], err = m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
-		a1 = append(a1, tmp)
 	}
 	return a1, nil
 }
@@ -126,13 +126,13 @@ func (m *MapperImpl) SliceCtoD(c0 []C) []D {
 }
 
 func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
-	var a1 []B
-	for _, each := range a0 {
-		tmp, err := m.mapMainAToMainB(each)
+	a1 := make([]B, len(a0))
+	for i, each := range a0 {
+		var err error
+		a1[i], err = m.mapMainAToMainB(each)
 		if err != nil {
 			return nil, err
 		}
-		a1 = append(a1, tmp)
 	}
 	return a1, nil
 }
