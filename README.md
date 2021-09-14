@@ -4,6 +4,7 @@ Generate code that maps struct to struct.
 
 Similar projects:
 - [builder](https://github.com/alextanhongpin/builder): generate builder for private fields
+- [getter](https://github.com/alextanhongpin/getter): generate getters for private struct fields, with inlining
 
 ## Design thoughts
 - should not include pointer. Mapping requires one struct and returns one struct or error.
