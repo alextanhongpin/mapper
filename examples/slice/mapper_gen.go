@@ -2,7 +2,10 @@
 
 package main
 
-import examples "github.com/alextanhongpin/mapper/examples"
+import (
+	examples "github.com/alextanhongpin/mapper/examples"
+	"strconv"
+)
 
 var _ Mapper = (*MapperImpl)(nil)
 
@@ -13,13 +16,42 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+
+	a0Ints := make([]int, len(a0.Ints))
+	for i, each := range a0.Ints {
+		a0Ints[i] = AddOne(each)
+	}
+	a0Slice := Upper(a0.Slice)
 	return B{
 		Bool:  a0.Bool,
 		ID:    a0.ID,
+		Ints:  a0Ints,
 		Map:   a0.Map,
-		Slice: a0.Slice,
+		Slice: a0Slice,
 		Str:   a0.Str,
 	}
+}
+
+func (m *MapperImpl) mapMainCToMainD(c0 C) (D, error) {
+
+	c0Ints := make([]int, len(c0.Ints))
+	for i, each := range c0.Ints {
+
+		var err error
+		c0Ints[i], err = strconv.Atoi(each)
+		if err != nil {
+			return D{}, err
+		}
+	}
+
+	c0Items, err := Join(c0.Items)
+	if err != nil {
+		return D{}, err
+	}
+	return D{
+		Ints:  c0Ints,
+		Items: c0Items,
+	}, nil
 }
 
 func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
@@ -35,6 +67,15 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 func (m *MapperImpl) AtoB(a0 A) B {
 	a1 := m.mapMainAToMainB(a0)
 	return a1
+}
+
+func (m *MapperImpl) CtoD(c0 C) (D, error) {
+
+	c1, err := m.mapMainCToMainD(c0)
+	if err != nil {
+		return D{}, err
+	}
+	return c1, nil
 }
 
 func (m *MapperImpl) ExternalAtoB(a0 []examples.A) []examples.B {
