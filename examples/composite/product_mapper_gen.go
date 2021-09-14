@@ -10,6 +10,7 @@ func NewProductMapperImpl() *ProductMapperImpl {
 }
 
 func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(p0 Products) (ProductSummary, error) {
+
 	p0Items, err := IsValidStatus(p0.Items)
 	if err != nil {
 		return ProductSummary{}, err
@@ -22,6 +23,7 @@ func (p *ProductMapperImpl) mapMainProductsToMainProductSummary(p0 Products) (Pr
 }
 
 func (p *ProductMapperImpl) ProductToProductSummary(p0 Products) (*ProductSummary, error) {
+
 	p1, err := p.mapMainProductsToMainProductSummary(p0)
 	if err != nil {
 		return nil, err

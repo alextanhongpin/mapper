@@ -10,6 +10,7 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+
 	a0Status := a0.CustomStatus()
 	return B{Status: a0Status}
 }

@@ -36,13 +36,15 @@ func NewInterfaceVisitor(T types.Type) *InterfaceVisitor {
 
 func (v *InterfaceVisitor) parseMethods() {
 	for name, fn := range v.methods {
-		iv := &FuncVisitor{}
-		iv.Visit(fn.Fn)
-		// Store the func info.
-		v.methodInfo[name] = iv
-		signature := fn.Normalize().Signature()
+		fv := &FuncVisitor{}
+		fv.Visit(fn.Fn)
 
-		result, param := iv.Result, iv.Param
+		// Store the func info.
+		v.methodInfo[name] = fv
+		signature := fn.Normalize().Signature()
+		v.hasErrorByMapper[signature] = fv.HasError()
+
+		result, param := fv.Result, fv.Param
 
 		// checkFieldsHasMappings
 		for _, name := range result.Fields() {
@@ -63,10 +65,17 @@ func (v *InterfaceVisitor) parseMethods() {
 				//mapperFn(lhs) rhs
 				mapperFn, _ := result.MapperByTag(rhs.Tag.Tag)
 				if mapperFn.Error {
+					// If the parent does not have error, but the inner function does, it
+					// is invalid.
+					if !v.hasErrorByMapper[signature] {
+						panic("missing return error")
+					}
 					v.hasErrorByMapper[signature] = true
 				}
 			}
 		}
+		// The first loop intends to set this value, full validation is done in the
+		// second interation, which requires this.
 		v.mappers[signature] = true
 	}
 

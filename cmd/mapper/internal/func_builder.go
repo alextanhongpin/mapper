@@ -31,15 +31,15 @@ func (b *FuncBuilder) GenReturnOnError() *Statement {
 	return GenReturnValue(b.fn)
 }
 
-func (b *FuncBuilder) BuildFuncCall(c *C, fn *mapper.Func, lhs, rhs types.Type) {
-	b.buildFunc(c, fn, lhs, rhs, func(assign *Statement, op string) *Statement {
+func (b *FuncBuilder) BuildFuncCall(fn *mapper.Func, lhs, rhs types.Type) *Statement {
+	return b.buildFunc(fn, lhs, rhs, func(assign *Statement, op string) *Statement {
 		prefix := Qual(fn.PkgPath, fn.Name)
 		return b.genMethodCall(prefix, assign, op, fn, lhs, rhs)
 	})
 }
 
-func (b *FuncBuilder) BuildMethodCall(c *C, prefix *Statement, fn *mapper.Func, lhs, rhs types.Type) {
-	b.buildFunc(c, fn, lhs, rhs, func(assign *Statement, op string) *Statement {
+func (b *FuncBuilder) BuildMethodCall(prefix *Statement, fn *mapper.Func, lhs, rhs types.Type) *Statement {
+	return b.buildFunc(fn, lhs, rhs, func(assign *Statement, op string) *Statement {
 		return b.genMethodCall(prefix, assign, op, fn, lhs, rhs)
 	})
 }
@@ -62,7 +62,7 @@ func (b *FuncBuilder) genMethodCall(prefix, assign *Statement, op string, method
 			s.Add(Op("*"))
 		}
 
-		if mapper.IsSlice(lhs) && mapper.IsSlice(rhs) {
+		if mapper.IsSlice(lhs) && mapper.IsSlice(rhs) && !mapper.IsSlice(method.From.Type) {
 			s.Add(Id("each"))
 		} else {
 			s.Add(a0Selection())
@@ -73,179 +73,255 @@ func (b *FuncBuilder) genMethodCall(prefix, assign *Statement, op string, method
 		return assign.Clone().Op(op).Add(fnCall)
 	}
 
-	c := Null()
-	if op == "=" {
-		c = c.Var().Err().Error().Line()
-	}
-	return c.
-		List(assign.Clone(), Err()).Op(op).Add(fnCall).Line().
-		Add(b.GenReturnOnError())
+	return CustomFunc(Options{Multi: true}, func(g *Group) {
+		if op == "=" {
+			g.Add(Var().Err().Error())
+		}
+		g.Add(List(assign.Clone(), Err()).Op(op).Add(fnCall))
+		g.Add(b.GenReturnOnError())
+	})
 }
 
-func (b *FuncBuilder) buildFunc(c *C, fn *mapper.Func, lhs, rhs types.Type, fnAssignment func(*Statement, string) *Statement) {
+func (b *FuncBuilder) buildFunc(fn *mapper.Func, lhs, rhs types.Type, fnAssignment func(*Statement, string) *Statement) *Statement {
 	var (
-		r           = b.resolver
-		a0Name      = r.LhsVar
-		a0Selection = r.RhsVar
+		r      = b.resolver
+		a0Name = r.LhsVar
 	)
 	defer func() {
 		r.Assign()
 	}()
 
-	inputIsPointer := mapper.IsPointer(lhs)
-	outputIsPointer := mapper.IsPointer(fn.To.Type)
-	expectsPointer := mapper.IsPointer(rhs)
-	inputIsSlice := mapper.IsSlice(lhs)
-	outputIsSlice := mapper.IsSlice(rhs)
+	ins := mapper.IsSlice(lhs)
+	args := mapper.IsSlice(fn.From.Type)
+	outs := mapper.IsSlice(rhs)
 
-	if !inputIsSlice {
-		if inputIsPointer {
-			if !outputIsPointer && expectsPointer {
-				// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS NOT POINTER > EXPECTS POINTER
-				//
-				// Output:
-				// var a0Name *fn.T
-				// if a0.Name != nil {
-				//   tmp := fn.Fn(a0.Name)  // Func requires pointer input
-				//   a0Name = &tmp
-				// }
-				c.Add(
-					Var().Add(a0Name()).Add(GenType(rhs)),
-					If(a0Selection().Op("!=").Nil()).Block(
-						fnAssignment(Id("tmp"), ":="),
-						a0Name().Op("=").Op("&").Id("tmp"),
-					),
-				)
-			} else {
-				// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS NOT POINTER > DOES NOT EXPECT POINTER
-				// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS POINTER > EXPECT POINTER
-				// NO ERROR > NOT SLICE > INPUT IS POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER (WILL PANIC)
-				//
-				// Output:
-				// var a0Name fn.T
-				// if a0.Name != nil {
-				//   a0Name = fn.Fn(a0.Name)  // Func requires pointer input
-				// 	 a0Name = fn.Fn(*a0.Name) // Func requires value input
-				// }
-				c.Add(
-					Var().Add(a0Name()).Add(GenType(rhs)),
-					If(a0Selection().Op("!=").Nil()).Block(
-						fnAssignment(a0Name(), "="),
-					),
-				)
-			}
-		} else {
-			if !outputIsPointer && expectsPointer {
-				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER
-				//
-				// Output:
-				// a0Name := fn.Fn(&a0.Name)
-				// a1Name := &a0Name
-				c.Add(fnAssignment(a0Name(), ":="))
-				r.Assign()
-				c.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
-			} else {
-				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > EXPECTS POINTER
-				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER > DOES NOT EXPECTS POINTER
-				// NO ERROR > NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER > DOES NOT EXPECT POINTER (WILL PANIC ABOVE)
-				//
-				// Output:
-				// a0Name := fn.Fn(&a0.Name) // Func requires pointer input.
-				// a0Name := fn.Fn(a0.Name)  // Func requires value input.
-				c.Add(fnAssignment(a0Name(), ":="))
-			}
+	// struct2struct
+	if ins == outs && ins == args {
+		return struct2Struct(r, fn, lhs, rhs, fnAssignment)
+	} else if ins == outs && ins != args {
+		if !ins {
+			panic("unhandled method call")
 		}
+		return slice2slice(r, fn, lhs, rhs, fnAssignment)
 	} else {
-		if !outputIsSlice {
-			// HAS NO ERROR > INPUT IS SLICE > OUTPUT IS NOT SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER
-			//
+		/*
+			Output:
+
+			a0Name := fn.Fn(a0.Name)
+		*/
+		return fnAssignment(a0Name(), ":=")
+	}
+}
+
+func struct2Struct(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment func(*Statement, string) *Statement) *Statement {
+	var (
+		a0Name      = r.LhsVar
+		a0Selection = r.RhsVar
+	)
+
+	inp := mapper.IsPointer(lhs)
+	outp := mapper.IsPointer(rhs)
+	argp := mapper.IsPointer(fn.From.Type)
+	resp := mapper.IsPointer(fn.To.Type)
+
+	var nilHandler func(*Statement) *Statement
+	if inp != argp && inp {
+		nilHandler = func(s *Statement) *Statement {
+			return Custom(Options{Multi: true},
+				/*
+					Output:
+
+					var a0Name (*)b.B
+					if a0.Name != nil {
+						// To be filled ...
+					}
+				*/
+				Var().Add(a0Name()).Add(GenType(rhs)),
+				If(a0Selection().Op("!=").Nil()).Block(s),
+			)
+		}
+	}
+
+	if outp != resp && outp {
+		if nilHandler != nil {
+			return nilHandler(Custom(Options{Multi: true},
+				/*
+					Output:
+
+					var a0Name (*)b.B
+					if a0.Name != nil {
+						tmp := fnpkg.Fn(a0.Name)
+						a0Name = &tmp
+					}
+				*/
+				fnAssignment(Id("tmp"), ":="),
+				a0Name()).Op("=").Op("&").Id("tmp"),
+			)
+		}
+
+		return CustomFunc(Options{Multi: true}, func(g *Group) {
 			/*
 				Output:
 
-				a0Name := fn.Fn(a0.Name)
+				a0Name := fnpkg.Fn(a0.Name)
+				a1Name := &a0Name
 			*/
-			c.Add(fnAssignment(a0Name(), ":="))
-		} else {
-			// NO ERROR > IS SLICE
-			if inputIsPointer {
-				// IS SLICE > INPUT IS POINTER
-				//
-				// Output:
-				// var a0Name []*b.B // If output is pointer
-				// var a0Name []b.B  // If output is value
-				// for _, each := range a0.Name {
-				//   if each != nil {
-				//     tmp := fn.Fn(*each)
-				//     if tmp != nil {
-				//       a0Name = append(a0Name, *tmp) // Expects value return.
-				//       a0Name = append(a0Name, tmp)  // Expects pointer return.
-				//     }
-				//   }
-				// }
-				c.Add(
-					Var().Add(a0Name()).Add(GenType(rhs)),
-					For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-						If(Id("each").Op("!=").Nil().Block(
-							fnAssignment(Id("tmp"), "="),
-							If(Id("tmp").Op("!=").Nil()).Block(
-								a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
-									if outputIsPointer && !expectsPointer {
+			g.Add(fnAssignment(a0Name(), ":="))
+			r.Assign()
+			g.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
+		})
+	}
+
+	if nilHandler != nil {
+		/*
+			Output:
+
+			var a0Name (*)b.B
+			if a0.Name != nil {
+				a0Name = fnpkg.Fn(a0.Name)
+			}
+		*/
+		return nilHandler(fnAssignment(a0Name(), "="))
+	}
+
+	/*
+		Output:
+
+		a0Name := fnpkg.Fn(a0.Name)
+	*/
+	return fnAssignment(a0Name(), ":=")
+}
+
+func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment func(*Statement, string) *Statement) *Statement {
+	var (
+		a0Name      = r.LhsVar
+		a0Selection = r.RhsVar
+	)
+
+	inp := mapper.IsPointer(lhs)
+	argp := mapper.IsPointer(fn.From.Type)
+	outp := mapper.IsPointer(rhs)
+	resp := mapper.IsPointer(fn.To.Type)
+
+	if inp != argp && inp {
+		if outp != resp && resp {
+			/*
+				Output:
+
+				var a0Name []b.B
+				for _, each := range a0.Name {
+					if each != nil {
+						tmp := fn.Fn(*each)
+						if tmp != nil {
+							a0Name = append(a0Name, *tmp) // Expects value return.
+							a0Name = append(a0Name, tmp) 	// Expects pointer return.
+						}
+					}
+				}
+			*/
+			return Custom(Options{Multi: true},
+				Var().Add(a0Name()).Add(GenType(rhs)),
+				For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
+					If(Id("each").Op("!=").Nil().Block(
+						fnAssignment(Id("tmp"), "="),
+						If(Id("tmp").Op("!=").Nil()).Block(
+							a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
+								if outp != resp {
+									if outp {
+										s.Add(Op("&"))
+									} else {
 										s.Add(Op("*"))
 									}
-									if !outputIsPointer && expectsPointer {
-										s.Add(Op("&"))
-									}
-								}).Id("tmp")),
-							),
-						)),
-					),
-				)
-			} else {
-				if outputIsPointer {
-					// IS SLICE > INPUT IS NOT POINTER > OUTPUT IS POINTER
-					//
-					// Output:
-					// var a0Name []b.B  // Expects value.
-					// var a0Name []*b.B // Expects pointer.
-					// for _, each := range a0.Name {
-					//   tmp := fn.Fn(&each)
-					//   if tmp != nil {
-					//     a0Name = append(a0Name, &tmp) // Expects output pointer for value result.
-					//     a0Name = append(a0Name, tmp)  // Expects output pointer for pointer result.
-					//     a0Name = append(a0Name, *tmp) // Expects output value for pointer result.
-					//   }
-					// }
-					c.Add(
-						Var().Add(a0Name()).Add(GenType(rhs)),
-						For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							fnAssignment(Id("tmp"), "="),
-							If(Id("tmp").Op("!=").Nil()).Block(
-								a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
-									if outputIsPointer && !expectsPointer {
-										s.Add(Op("*"))
-									} else if !outputIsPointer && expectsPointer {
-										s.Add(Op("&"))
-									}
-								}).Id("tmp")),
-							),
+								}
+							}).Id("tmp")),
 						),
-					)
-				} else {
-					// IS SLICE > INPUT IS NOT POINTER > OUTPUT IS NOT POINTER
-					//
-					// Output:
-					// a0Name := make([]b.B, a0.Name)
-					// for i, each := range a0.Name {
-					//   a0Name[i] = fn.Fn(&each)
-					// }
-					c.Add(
-						a0Name().Op(":=").Make(Add(GenType(rhs)), Len(a0Selection())),
-						For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
-							fnAssignment(a0Name().Index(Id("i")), "="),
-						),
-					)
+					)),
+				),
+			)
+		}
+
+		/*
+			Output:
+
+			var a0Name []b.B
+			for _, each := range a0.Name {
+				if each != nil {
+					tmp := fn.Fn(*each)
+					a0Name = append(a0Name, *tmp) // Expects value return.
+					a0Name = append(a0Name, tmp) 	// Expects pointer return.
 				}
 			}
-		}
+		*/
+		return Custom(Options{Multi: true},
+			Var().Add(a0Name()).Add(GenType(rhs)),
+			For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
+				If(Id("each").Op("!=").Nil().Block(
+					fnAssignment(Id("tmp"), "="),
+					a0Selection().Op("=").Append(a0Selection(), Do(func(s *Statement) {
+						if outp == resp {
+							return
+						}
+
+						if outp {
+							s.Add(Op("&"))
+						} else {
+							s.Add(Op("*"))
+						}
+					}).Id("tmp")),
+				)),
+			),
+		)
 	}
+
+	if resp {
+		/*
+			Condition: in is not pointer, out is pointer.
+			Output:
+
+			var a0Name [](*)b.B
+			for _, each := range a0.Name {
+				tmp := pkgfn.Fn(each)
+				if tmp != nil {
+					a0Name = append(a0Name, &tmp) // Expects output pointer for value result.
+					a0Name = append(a0Name, tmp)  // Expects output pointer for pointer result.
+					a0Name = append(a0Name, *tmp) // Expects output value for pointer result.
+				}
+			}
+		*/
+		return Custom(Options{Multi: true},
+			Var().Add(a0Name()).Add(GenType(rhs)),
+			For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
+				fnAssignment(Id("tmp"), "="),
+				If(Id("tmp").Op("!=").Nil()).Block(
+					a0Name().Op("=").Append(a0Name(), Do(func(s *Statement) {
+						if resp == outp {
+							return
+						}
+
+						if outp {
+							s.Add(Op("&"))
+						} else {
+							s.Add(Op("*"))
+						}
+					}).Id("tmp")),
+				),
+			),
+		)
+	}
+
+	/*
+		Condition: in/out is not pointer.
+		Output:
+
+		a0Name := make([]b.B, a0.Name)
+		for i, each := range a0.Name {
+			a0Name[i] = pkgfn.Fn(each)
+		}
+	*/
+	return Custom(Options{Multi: true},
+		a0Name().Op(":=").Make(Add(GenType(rhs)), Len(a0Selection())),
+		For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
+			fnAssignment(a0Name().Index(Id("i")), "="),
+		),
+	)
 }

@@ -12,10 +12,13 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) B {
+
 	a0NonPtrToPointer := m.mapMainCToMainD(a0.NonPtrToPointer)
 	a1NonPtrToPointer := &a0NonPtrToPointer
+
 	var a0Ptr *D
 	if a0.Ptr != nil {
+
 		tmp := m.mapMainCToMainD(*a0.Ptr)
 		a0Ptr = &tmp
 	}
@@ -48,14 +51,17 @@ func (m *MapperImpl) mapExamplesAToExamplesB(a0 examples.A) examples.B {
 }
 
 func (m *MapperImpl) AtoB(a0 A) *B {
+
 	a1 := m.mapMainAToMainB(a0)
 	a2 := &a1
 	return a2
 }
 
 func (m *MapperImpl) CPointerToDPointer(c0 *C) *D {
+
 	var c1 *D
 	if c0 != nil {
+
 		tmp := m.mapMainCToMainD(*c0)
 		c1 = &tmp
 	}
@@ -68,12 +74,14 @@ func (m *MapperImpl) CtoD(c0 C) D {
 }
 
 func (m *MapperImpl) CtoDPointer(c0 C) *D {
+
 	c1 := m.mapMainCToMainD(c0)
 	c2 := &c1
 	return c2
 }
 
 func (m *MapperImpl) ExternalAtoB(a0 examples.A) *examples.B {
+
 	a1 := m.mapExamplesAToExamplesB(a0)
 	a2 := &a1
 	return a2

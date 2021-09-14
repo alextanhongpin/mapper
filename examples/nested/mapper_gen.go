@@ -12,6 +12,7 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapExamplesBookToMainBook(b0 examples.Book) Book {
+
 	b0Price := m.mapExamplesPriceToMainPrice(b0.Price)
 	b1Price := &b0Price
 	return Book{
@@ -30,6 +31,7 @@ func (m *MapperImpl) mapExamplesPriceToMainPrice(p0 examples.Price) Price {
 }
 
 func (m *MapperImpl) mapExamplesUserToMainUser(u0 examples.User) User {
+
 	u0Books := make([]Book, len(u0.Books))
 	for i, each := range u0.Books {
 		u0Books[i] = m.mapExamplesBookToMainBook(each)
@@ -47,6 +49,7 @@ func (m *MapperImpl) ConvertBook(b0 examples.Book) (Book, error) {
 }
 
 func (m *MapperImpl) ConvertPrice(p0 examples.Price) *Price {
+
 	p1 := m.mapExamplesPriceToMainPrice(p0)
 	p2 := &p1
 	return p2
