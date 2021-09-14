@@ -8,29 +8,26 @@ import (
 var mr Resolver = new(MethodResolver)
 
 type MethodResolver struct {
-	name  string
-	lhs   *mapper.Func
-	rhs   mapper.StructField
-	count int
+	lhs    *mapper.Func
+	rhs    mapper.StructField
+	assign *Assignment
 }
 
 func NewMethodResolver(name string, lhs *mapper.Func, rhs mapper.StructField) *MethodResolver {
+	fieldName0 := lhs.Name
+	fieldNameN := lhs.Name
+	if rhs.Tag != nil && rhs.Tag.IsAlias() {
+		fieldNameN = rhs.Name
+	}
 	return &MethodResolver{
-		name: name,
-		lhs:  lhs,
-		rhs:  rhs,
+		lhs:    lhs,
+		rhs:    rhs,
+		assign: NewAssignment(name, fieldName0, fieldNameN, true),
 	}
 }
 
 func (f MethodResolver) Lhs() interface{} {
 	return f.lhs
-}
-
-func (f MethodResolver) fieldName() string {
-	if f.rhs.Tag != nil && f.rhs.Tag.IsAlias() {
-		return f.rhs.Name
-	}
-	return f.lhs.Name
 }
 
 func (f MethodResolver) Rhs() mapper.StructField {
@@ -40,18 +37,11 @@ func (f MethodResolver) Rhs() mapper.StructField {
 func (f MethodResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.fieldName())
+	return f.assign.Lhs()
 }
 
 func (f MethodResolver) RhsVar() *jen.Statement {
-	if f.count == 0 {
-		// Output:
-		// a0.Name()
-		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name).Call()
-	}
-	// Output:
-	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1) + f.fieldName())
+	return f.assign.Rhs()
 }
 
 func (f MethodResolver) LhsType() *jen.Statement {
@@ -63,7 +53,7 @@ func (f MethodResolver) RhsType() *jen.Statement {
 }
 
 func (f *MethodResolver) Assign() {
-	f.count++
+	f.assign.Increment()
 }
 
 func (f MethodResolver) IsField() bool {

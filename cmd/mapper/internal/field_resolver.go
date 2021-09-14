@@ -8,17 +8,21 @@ import (
 var fr Resolver = new(FieldResolver)
 
 type FieldResolver struct {
-	name  string
-	lhs   mapper.StructField
-	rhs   mapper.StructField
-	count int
+	lhs    mapper.StructField
+	rhs    mapper.StructField
+	assign *Assignment
 }
 
 func NewFieldResolver(name string, lhs, rhs mapper.StructField) *FieldResolver {
+	fieldName0 := lhs.Name
+	fieldNameN := lhs.Name
+	if rhs.Tag != nil && rhs.Tag.IsAlias() {
+		fieldNameN = rhs.Name
+	}
 	return &FieldResolver{
-		name: name,
-		lhs:  lhs,
-		rhs:  rhs,
+		lhs:    lhs,
+		rhs:    rhs,
+		assign: NewAssignment(name, fieldName0, fieldNameN, false),
 	}
 }
 
@@ -30,45 +34,14 @@ func (f FieldResolver) Rhs() mapper.StructField {
 	return f.rhs
 }
 
-/*
-	NOTE: For scenario with similar alias.
-
-	type ProductMapper interface {
-		ProductToProductSummary(Products) (*ProductSummary, error)
-	}
-
-	type Products struct {
-		Items []int64
-	}
-
-	// Both are referring to items.
-	type ProductSummary struct {
-		Items      bool  `map:",IsValidStatus"`
-		TotalCount int64 `map:"Items,CountItems"`
-	}
-*/
-func (f FieldResolver) fieldName() string {
-	if f.rhs.Tag != nil && f.rhs.Tag.IsAlias() {
-		return f.rhs.Name
-	}
-	return f.lhs.Name
-}
-
 func (f FieldResolver) LhsVar() *jen.Statement {
 	// Output:
 	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count) + f.fieldName())
+	return f.assign.Lhs()
 }
 
 func (f FieldResolver) RhsVar() *jen.Statement {
-	if f.count == 0 {
-		// Output:
-		// a0.Name
-		return jen.Id(argsWithIndex(f.name, f.count)).Dot(f.lhs.Name)
-	}
-	// Output:
-	// a0Name
-	return jen.Id(argsWithIndex(f.name, f.count-1) + f.fieldName())
+	return f.assign.Rhs()
 }
 
 func (f FieldResolver) LhsType() *jen.Statement {
@@ -80,7 +53,7 @@ func (f FieldResolver) RhsType() *jen.Statement {
 }
 
 func (f *FieldResolver) Assign() {
-	f.count++
+	f.assign.Increment()
 }
 
 func (f FieldResolver) IsField() bool {
