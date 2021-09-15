@@ -17,24 +17,19 @@ func NewMapperImpl() *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
-
 	a0AliasID := IntToString(a0.ID)
 	a0ExternalID := examples.IntToString(a0.ExternalID)
 	a0ID := IntToString(a0.ID)
-
 	a0IDs := make([]uuid.UUID, len(a0.IDs))
 	for i, each := range a0.IDs {
-
 		var err error
 		a0IDs[i], err = uuid.Parse(each)
 		if err != nil {
 			return B{}, err
 		}
 	}
-
 	a0Nums := make([]int, len(a0.Nums))
 	for i, each := range a0.Nums {
-
 		var err error
 		a0Nums[i], err = strconv.Atoi(each)
 		if err != nil {
@@ -43,12 +38,10 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 	}
 	a0PtrString := PointerStringToNullString(a0.PtrString)
 	a0Remarks := NullStringToPointer(a0.Remarks)
-
 	a0RemarksError, err := NullStringToPointerError(a0.RemarksError)
 	if err != nil {
 		return B{}, err
 	}
-
 	a0UUID, err := uuid.Parse(a0.UUID)
 	if err != nil {
 		return B{}, err
@@ -67,7 +60,6 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 }
 
 func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomField) (CustomField, error) {
-
 	c0Num, err := StringToInt(c0.Num)
 	if err != nil {
 		return CustomField{}, err
@@ -76,13 +68,11 @@ func (m *MapperImpl) mapExamplesCustomFieldToMainCustomField(c0 examples.CustomF
 }
 
 func (m *MapperImpl) mapMainCToMainD(c0 C) D {
-
 	c0ID := IntToString(c0.ID)
 	return D{ID: c0ID}
 }
 
 func (m *MapperImpl) AtoB(a0 A) (B, error) {
-
 	a1, err := m.mapMainAToMainB(a0)
 	if err != nil {
 		return B{}, err
@@ -91,7 +81,6 @@ func (m *MapperImpl) AtoB(a0 A) (B, error) {
 }
 
 func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, error) {
-
 	c1, err := m.mapExamplesCustomFieldToMainCustomField(c0)
 	if err != nil {
 		return CustomField{}, err
@@ -100,7 +89,6 @@ func (m *MapperImpl) ConvertImportedFunc(c0 examples.CustomField) (CustomField, 
 }
 
 func (m *MapperImpl) ConvertImportedFuncPointer(c0 examples.CustomField) (*CustomField, error) {
-
 	c1, err := m.mapExamplesCustomFieldToMainCustomField(c0)
 	if err != nil {
 		return nil, err
@@ -115,10 +103,8 @@ func (m *MapperImpl) CtoD(c0 C) D {
 }
 
 func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
-
 	a1 := make([]B, len(a0))
 	for i, each := range a0 {
-
 		var err error
 		a1[i], err = m.mapMainAToMainB(each)
 		if err != nil {
@@ -129,7 +115,6 @@ func (m *MapperImpl) SliceAtoB(a0 []A) ([]B, error) {
 }
 
 func (m *MapperImpl) SliceCtoD(c0 []C) []D {
-
 	c1 := make([]D, len(c0))
 	for i, each := range c0 {
 		c1[i] = m.mapMainCToMainD(each)
@@ -138,10 +123,8 @@ func (m *MapperImpl) SliceCtoD(c0 []C) []D {
 }
 
 func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
-
 	a1 := make([]B, len(a0))
 	for i, each := range a0 {
-
 		var err error
 		a1[i], err = m.mapMainAToMainB(each)
 		if err != nil {
@@ -152,7 +135,6 @@ func (m *MapperImpl) VariadicAtoB(a0 ...A) ([]B, error) {
 }
 
 func (m *MapperImpl) VariadicCtoD(c0 ...C) []D {
-
 	c1 := make([]D, len(c0))
 	for i, each := range c0 {
 		c1[i] = m.mapMainCToMainD(each)

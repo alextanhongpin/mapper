@@ -73,13 +73,14 @@ func (b *FuncBuilder) genMethodCall(prefix, assign *Statement, op string, method
 		return assign.Clone().Op(op).Add(fnCall)
 	}
 
-	return CustomFunc(Options{Multi: true}, func(g *Group) {
-		if op == "=" {
-			g.Add(Var().Err().Error())
-		}
-		g.Add(List(assign.Clone(), Err()).Op(op).Add(fnCall))
-		g.Add(b.GenReturnOnError())
-	})
+	m := NewMulti()
+	if op == "=" {
+		m.Add(Var().Err().Error())
+	}
+	return m.Add(
+		List(assign.Clone(), Err()).Op(op).Add(fnCall),
+		b.GenReturnOnError(),
+	).Statement()
 }
 
 func (b *FuncBuilder) buildFunc(fn *mapper.Func, lhs, rhs types.Type, fnAssignment func(*Statement, string) *Statement) *Statement {
@@ -127,7 +128,7 @@ func struct2Struct(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignmen
 	var nilHandler func(*Statement) *Statement
 	if inp != argp && inp {
 		nilHandler = func(s *Statement) *Statement {
-			return Custom(Options{Multi: true},
+			return NewMulti(
 				/*
 					Output:
 
@@ -138,13 +139,13 @@ func struct2Struct(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignmen
 				*/
 				Var().Add(a0Name()).Add(GenType(rhs)),
 				If(a0Selection().Op("!=").Nil()).Block(s),
-			)
+			).Statement()
 		}
 	}
 
 	if outp != resp && outp {
 		if nilHandler != nil {
-			return nilHandler(Custom(Options{Multi: true},
+			return nilHandler(NewMulti(
 				/*
 					Output:
 
@@ -155,21 +156,22 @@ func struct2Struct(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignmen
 					}
 				*/
 				fnAssignment(Id("tmp"), ":="),
-				a0Name()).Op("=").Op("&").Id("tmp"),
-			)
+				a0Name().Op("=").Op("&").Id("tmp"),
+			).Statement())
 		}
 
-		return CustomFunc(Options{Multi: true}, func(g *Group) {
-			/*
-				Output:
+		m := NewMulti()
+		/*
+			Output:
 
-				a0Name := fnpkg.Fn(a0.Name)
-				a1Name := &a0Name
-			*/
-			g.Add(fnAssignment(a0Name(), ":="))
-			r.Assign()
-			g.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
-		})
+			a0Name := fnpkg.Fn(a0.Name)
+			a1Name := &a0Name
+		*/
+		m.Add(fnAssignment(a0Name(), ":="))
+		r.Assign()
+		m.Add(a0Name().Op(":=").Op("&").Add(a0Selection()))
+
+		return m.Statement()
 	}
 
 	if nilHandler != nil {
@@ -218,8 +220,7 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 						}
 					}
 				}
-			*/
-			return Custom(Options{Multi: true},
+			*/return NewMulti(
 				Var().Add(a0Name()).Add(GenType(rhs)),
 				For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
 					If(Id("each").Op("!=").Nil().Block(
@@ -236,8 +237,8 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 							}).Id("tmp")),
 						),
 					)),
-				),
-			)
+				)).Statement()
+
 		}
 
 		/*
@@ -251,8 +252,7 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 					a0Name = append(a0Name, tmp) 	// Expects pointer return.
 				}
 			}
-		*/
-		return Custom(Options{Multi: true},
+		*/return NewMulti(
 			Var().Add(a0Name()).Add(GenType(rhs)),
 			For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
 				If(Id("each").Op("!=").Nil().Block(
@@ -269,8 +269,8 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 						}
 					}).Id("tmp")),
 				)),
-			),
-		)
+			)).Statement()
+
 	}
 
 	if resp {
@@ -287,8 +287,7 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 					a0Name = append(a0Name, *tmp) // Expects output value for pointer result.
 				}
 			}
-		*/
-		return Custom(Options{Multi: true},
+		*/return NewMulti(
 			Var().Add(a0Name()).Add(GenType(rhs)),
 			For(List(Id("_"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
 				fnAssignment(Id("tmp"), "="),
@@ -305,8 +304,8 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 						}
 					}).Id("tmp")),
 				),
-			),
-		)
+			)).Statement()
+
 	}
 
 	/*
@@ -317,11 +316,10 @@ func slice2slice(r Resolver, fn *mapper.Func, lhs, rhs types.Type, fnAssignment 
 		for i, each := range a0.Name {
 			a0Name[i] = pkgfn.Fn(each)
 		}
-	*/
-	return Custom(Options{Multi: true},
+	*/return NewMulti(
 		a0Name().Op(":=").Make(Add(GenType(rhs)), Len(a0Selection())),
 		For(List(Id("i"), Id("each")).Op(":=").Range().Add(a0Selection())).Block(
 			fnAssignment(a0Name().Index(Id("i")), "="),
-		),
-	)
+		)).Statement()
+
 }

@@ -220,186 +220,185 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func, opt mapper.OptionItem) *je
 	structFields := mapper.NewStructFields(to.Type).WithTags()
 	keys := generateSortedStructFields(structFields)
 
-	fnCall := CustomFunc(Options{Multi: true}, func(c *Group) {
-		for _, key := range keys {
-			var r internal.Resolver
-			// The RHS struct field.
-			to := structFields[key]
-			if to.Tag != nil && to.Tag.IsAlias() {
-				key = to.Tag.Name
-			}
-
-			// If LHS field matches the RHS field ...
-			if field, ok := methodInfo.Param.FieldByName(key); ok {
-				// Just an ordinary LHS struct field. Noice.
-				r = internal.NewFieldResolver(from.Name, field, to)
-			}
-			// Has a LHS struct field, but calls the method instead.
-			// The difference is there's no custom `map` tag to tell us what method it
-			// is. Rather, we infer from the name of the RHS field.
-			//
-			// Input:
-			// type Lhs struct{
-			//   name string
-			// }
-			//
-			// func (l Lhs) Name() string {}
-			//
-			// LHS method can also return error as the second argument.
-			if method, ok := methodInfo.Param.MethodByName(key); ok {
-				r = internal.NewMethodResolver(from.Name, method, to)
-			}
-			if r == nil {
-				panic("not a field or method")
-			}
-
-			var (
-				lhsType     types.Type
-				tag         = r.Tag()
-				rhsType     = r.Rhs().Type
-				hasTag      = tag != nil
-				bName       = func() *jen.Statement { return Id(r.Rhs().Name) }
-				a0Name      = r.LhsVar
-				a0Selection = r.RhsVar
-			)
-
-			funcBuilder := internal.NewFuncBuilder(r, normFn)
-
-			if r.IsMethod() {
-				// IS METHOD
-				method := r.Lhs().(*mapper.Func)
-				hasError := method.Error
-				lhsType = method.To.Type
-
-				// No tags, no errors, and equal types means we can assign the field directly.
-				if !hasTag && !hasError && mapper.IsIdentical(lhsType, rhsType) {
-					// Output:
-					// Name: a0.Name()
-					dict[bName()] = a0Selection()
-					continue
-				}
-
-				if hasError {
-					/*
-						Output:
-
-						a0Name, err := a0.Name()
-						if err != nil {
-							return B{}, err
-						}
-					*/
-					c.Add(List(a0Name(), Err()).Op(":=").Add(a0Selection()))
-					c.Add(funcBuilder.GenReturnOnError())
-				} else {
-					/*
-						Output:
-
-						a0Name := a0.Name()
-					*/
-					c.Add(a0Name().Op(":=").Add(a0Selection()))
-				}
-
-				// Don't exit yet, there might be another step of transformation.
-				r.Assign()
-			} else {
-				// IS NOT METHOD A.K.A IS STRUCT FIELD
-				lhs := r.Lhs().(mapper.StructField)
-				lhsType = lhs.Type
-
-				// No tags and equal types means we can assign the field directly.
-				if !hasTag && mapper.IsUnderlyingIdentical(lhsType, rhsType) {
-					if mapper.IsIdentical(lhsType, rhsType) {
-						/*
-							Output:
-
-							B{
-								Name: a0.Name(),
-							}
-						*/
-						dict[bName()] = a0Selection()
-					} else {
-						// There may be non-pointer to pointer conversion, that wasn't
-						// handled.
-						if !mapper.IsPointer(lhsType) && mapper.IsPointer(rhsType) {
-							dict[bName()] = Op("&").Add(a0Selection())
-						} else {
-							dict[bName()] = a0Selection()
-						}
-					}
-					continue
-				}
-				// There are probably further conversion for this field.
-			}
-
-			// METHOD OR FIELD RESOLVED.
-
-			// TAG.
-			// A tag exists, and could have transformation functions.
-			if tag != nil && tag.HasFunc() {
-				// If a method is provided, it works for single or slice, but the output
-				// raw type must match.
-
-				// TAG: IS FUNC
-				// The tag defines a custom function, TransformationFunc that can be used to
-				// map LHS field to RHS.
-				if tag.IsFunc() {
-					fn, _ := methodInfo.Result.MapperByTag(tag.Tag)
-
-					// Build the func.
-					c.Add(funcBuilder.BuildFuncCall(fn, lhsType, rhsType))
-
-					// The new type is the fn output type.
-					lhsType = fn.To.Type
-				}
-
-				// TAG: IS METHOD
-				// The tag loads a custom struct or interface method.
-				if tag.IsMethod() {
-					method, _ := methodInfo.Result.MapperByTag(tag.Tag)
-					// To avoid different packages having same struct name, prefix the
-					// struct name with the package name.
-					g.dependencies[tag.Var()] = method.Obj.Type()
-
-					c.Add(funcBuilder.BuildMethodCall(g.genShortName(opt).Dot(tag.Var()).Dot(method.Name), method, lhsType, rhsType))
-
-					lhsType = method.To.Type
-				}
-			}
-
-			if !mapper.IsUnderlyingIdentical(lhsType, rhsType) {
-				// Check if there is a private mapper with the signature that accepts LHS
-				// and returns RHS .
-				signature := buildFnSignature(lhsType, rhsType)
-
-				var method *mapper.Func
-				interfaceMethods := mapper.NewInterfaceMethods(opt.Type)
-				for _, met := range interfaceMethods {
-					if met.Normalize().Signature() == signature {
-						method = met.Normalize()
-						// Private mapper does not have error signature.
-						// Therefor, we have to manually assign them.
-						method.Error = g.hasErrorByMapper[signature]
-						break
-					}
-				}
-				// Method found.
-				c.Add(funcBuilder.BuildMethodCall(g.genShortName(opt).Dot(method.Name), method, lhsType, rhsType))
-				lhsType = method.To.Type
-			}
-			// RETURN VALUE.
-			// bName: a0Name
-			dict[bName()] = a0Selection()
+	m := internal.NewMulti()
+	for _, key := range keys {
+		var r internal.Resolver
+		// The RHS struct field.
+		to := structFields[key]
+		if to.Tag != nil && to.Tag.IsAlias() {
+			key = to.Tag.Name
 		}
-	})
 
-	return Custom(Options{Multi: true},
+		// If LHS field matches the RHS field ...
+		if field, ok := methodInfo.Param.FieldByName(key); ok {
+			// Just an ordinary LHS struct field. Noice.
+			r = internal.NewFieldResolver(from.Name, field, to)
+		}
+		// Has a LHS struct field, but calls the method instead.
+		// The difference is there's no custom `map` tag to tell us what method it
+		// is. Rather, we infer from the name of the RHS field.
+		//
+		// Input:
+		// type Lhs struct{
+		//   name string
+		// }
+		//
+		// func (l Lhs) Name() string {}
+		//
+		// LHS method can also return error as the second argument.
+		if method, ok := methodInfo.Param.MethodByName(key); ok {
+			r = internal.NewMethodResolver(from.Name, method, to)
+		}
+		if r == nil {
+			panic("not a field or method")
+		}
+
+		var (
+			lhsType     types.Type
+			tag         = r.Tag()
+			rhsType     = r.Rhs().Type
+			hasTag      = tag != nil
+			bName       = func() *jen.Statement { return Id(r.Rhs().Name) }
+			a0Name      = r.LhsVar
+			a0Selection = r.RhsVar
+		)
+
+		funcBuilder := internal.NewFuncBuilder(r, normFn)
+
+		if r.IsMethod() {
+			// IS METHOD
+			method := r.Lhs().(*mapper.Func)
+			hasError := method.Error
+			lhsType = method.To.Type
+
+			// No tags, no errors, and equal types means we can assign the field directly.
+			if !hasTag && !hasError && mapper.IsIdentical(lhsType, rhsType) {
+				// Output:
+				// Name: a0.Name()
+				dict[bName()] = a0Selection()
+				continue
+			}
+
+			if hasError {
+				/*
+					Output:
+
+					a0Name, err := a0.Name()
+					if err != nil {
+						return B{}, err
+					}
+				*/
+				m.Add(List(a0Name(), Err()).Op(":=").Add(a0Selection()))
+				m.Add(funcBuilder.GenReturnOnError())
+			} else {
+				/*
+					Output:
+
+					a0Name := a0.Name()
+				*/
+				m.Add(a0Name().Op(":=").Add(a0Selection()))
+			}
+
+			// Don't exit yet, there might be another step of transformation.
+			r.Assign()
+		} else {
+			// IS NOT METHOD A.K.A IS STRUCT FIELD
+			lhs := r.Lhs().(mapper.StructField)
+			lhsType = lhs.Type
+
+			// No tags and equal types means we can assign the field directly.
+			if !hasTag && mapper.IsUnderlyingIdentical(lhsType, rhsType) {
+				if mapper.IsIdentical(lhsType, rhsType) {
+					/*
+						Output:
+
+						B{
+							Name: a0.Name(),
+						}
+					*/
+					dict[bName()] = a0Selection()
+				} else {
+					// There may be non-pointer to pointer conversion, that wasn't
+					// handled.
+					if !mapper.IsPointer(lhsType) && mapper.IsPointer(rhsType) {
+						dict[bName()] = Op("&").Add(a0Selection())
+					} else {
+						dict[bName()] = a0Selection()
+					}
+				}
+				continue
+			}
+			// There are probably further conversion for this field.
+		}
+
+		// METHOD OR FIELD RESOLVED.
+
+		// TAG.
+		// A tag exists, and could have transformation functions.
+		if tag != nil && tag.HasFunc() {
+			// If a method is provided, it works for single or slice, but the output
+			// raw type must match.
+
+			// TAG: IS FUNC
+			// The tag defines a custom function, TransformationFunc that can be used to
+			// map LHS field to RHS.
+			if tag.IsFunc() {
+				fn, _ := methodInfo.Result.MapperByTag(tag.Tag)
+
+				// Build the func.
+				m.Add(funcBuilder.BuildFuncCall(fn, lhsType, rhsType))
+
+				// The new type is the fn output type.
+				lhsType = fn.To.Type
+			}
+
+			// TAG: IS METHOD
+			// The tag loads a custom struct or interface method.
+			if tag.IsMethod() {
+				method, _ := methodInfo.Result.MapperByTag(tag.Tag)
+				// To avoid different packages having same struct name, prefix the
+				// struct name with the package name.
+				g.dependencies[tag.Var()] = method.Obj.Type()
+
+				m.Add(funcBuilder.BuildMethodCall(g.genShortName(opt).Dot(tag.Var()).Dot(method.Name), method, lhsType, rhsType))
+
+				lhsType = method.To.Type
+			}
+		}
+
+		if !mapper.IsUnderlyingIdentical(lhsType, rhsType) {
+			// Check if there is a private mapper with the signature that accepts LHS
+			// and returns RHS .
+			signature := buildFnSignature(lhsType, rhsType)
+
+			var method *mapper.Func
+			interfaceMethods := mapper.NewInterfaceMethods(opt.Type)
+			for _, met := range interfaceMethods {
+				if met.Normalize().Signature() == signature {
+					method = met.Normalize()
+					// Private mapper does not have error signature.
+					// Therefor, we have to manually assign them.
+					method.Error = g.hasErrorByMapper[signature]
+					break
+				}
+			}
+			// Method found.
+			m.Add(funcBuilder.BuildMethodCall(g.genShortName(opt).Dot(method.Name), method, lhsType, rhsType))
+			lhsType = method.To.Type
+		}
+		// RETURN VALUE.
+		// bName: a0Name
+		dict[bName()] = a0Selection()
+	}
+
+	return internal.NewMulti(
 		Func().
-			Params(g.genShortName(opt).Op("*").Id(typeName)).                      // (c *Converter)
+			Params(g.genShortName(opt).Op("*").Id(typeName)).                      // (m *Converter)
 			Id(fnName).                                                            // mapMainAToMainB
 			Params(internal.GenInputType(internal.GenInputValue(normFn), normFn)). // (a A)
 			Add(internal.GenReturnType(normFn)).
 			BlockFunc(func(g *Group) {
-				g.Add(fnCall)
+				g.Add(m.Statement())
 
 				returnType := internal.GenTypeName(to.Type).Values(dict)
 
@@ -408,7 +407,8 @@ func (g *Generator) genPrivateMethod(fn *mapper.Func, opt mapper.OptionItem) *je
 				} else {
 					g.Add(Return(returnType))
 				}
-			})).Line()
+			})).Statement().
+		Line()
 }
 
 func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func, opt mapper.OptionItem) {
@@ -437,7 +437,7 @@ func (g *Generator) genPublicMethod(f *jen.File, fn *mapper.Func, opt mapper.Opt
 	method := funcBuilder.BuildMethodCall(g.genShortName(opt).Dot(normFn.NormalizedName()), normFn, lhsType, rhsType)
 
 	f.Func().
-		Params(g.genShortName(opt).Op("*").Id(typeName)). // (c *Converter)
+		Params(g.genShortName(opt).Op("*").Id(typeName)). // (m *Converter)
 		Id(fn.Name).
 		Params(internal.GenInputType(arg, fn)). // Convert(a *A)
 		Add(funcBuilder.GenReturnType()).       // (*B, error)

@@ -25,11 +25,6 @@ func init() {
 	}
 }
 
-func main() {
-	tag, ok := NewTag(`map:"Name(),CustomFunc"`)
-	fmt.Printf("%#v, %t", tag, ok)
-}
-
 func NewTag(tag string) (*Tag, bool) {
 	if !tagRe.MatchString(tag) {
 		return nil, false

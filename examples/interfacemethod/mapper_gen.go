@@ -19,9 +19,7 @@ func NewMapperImpl(examplesURLer examples.URLer, uRLer URLer) *MapperImpl {
 }
 
 func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
-
 	a0ExternalURL := m.examplesURLer.Build(a0.ExternalURL)
-
 	a0URL, err := m.uRLer.Build(a0.URL)
 	if err != nil {
 		return B{}, err
@@ -33,7 +31,6 @@ func (m *MapperImpl) mapMainAToMainB(a0 A) (B, error) {
 }
 
 func (m *MapperImpl) AtoB(a0 A) (B, error) {
-
 	a1, err := m.mapMainAToMainB(a0)
 	if err != nil {
 		return B{}, err

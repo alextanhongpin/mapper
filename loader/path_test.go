@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alextanhongpin/getter/loader"
+	"github.com/alextanhongpin/mapper/loader"
 )
 
 func TestFileNameFromTypeName(t *testing.T) {

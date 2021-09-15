@@ -1,7 +1,8 @@
 @@
 @@
-- Id("nil")
-+ Nil()
+
+-Custom(Options{Multi: true}, ...)
++NewMulti(...).Statement()
 
 #- method.Error != nil
 #+ method.Error
