@@ -101,3 +101,4 @@ func (m MapperImpl) AtoB(a A) B {
 
 - [ ] better error handling
 - [ ] handle exported and private fields
+- [ ] refactor using TDD
