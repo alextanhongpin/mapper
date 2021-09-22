@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/types"
 	"sort"
@@ -30,6 +31,7 @@ func main() {
 }
 
 type Generator struct {
+	b                *bytes.Buffer
 	opt              mapper.Option
 	dependencies     map[string]types.Type
 	mappers          map[string]bool
@@ -39,11 +41,19 @@ type Generator struct {
 
 func NewGenerator(opt mapper.Option) *Generator {
 	return &Generator{
+		b:                new(bytes.Buffer),
 		opt:              opt,
 		dependencies:     make(map[string]types.Type),
 		mappers:          make(map[string]bool),
 		hasErrorByMapper: make(map[string]bool),
 	}
+}
+
+func (g *Generator) GenerateString() (string, error) {
+	if err := g.Generate(); err != nil {
+		return "", err
+	}
+	return g.b.String(), nil
 }
 
 func (g *Generator) Generate() error {
@@ -52,6 +62,7 @@ func (g *Generator) Generate() error {
 		pkgName    = g.opt.PkgName
 		interfaces = g.opt.Items
 		out        = g.opt.Out
+		dryRun     = g.opt.DryRun
 	)
 
 	// If there is only one output, use the target struct
@@ -116,8 +127,14 @@ func (g *Generator) Generate() error {
 			g.genPublicMethod(f, method, opt)
 		}
 
-		if err := f.Save(out); err != nil { // e.g. main_gen.go
-			return err
+		if dryRun {
+			if err := f.Render(g.b); err != nil {
+				return err
+			}
+		} else {
+			if err := f.Save(out); err != nil { // e.g. main_gen.go
+				return err
+			}
 		}
 	}
 	fmt.Printf("success: generated %s\n", out)
